@@ -1,0 +1,156 @@
+================================================================================
+          LỘ TRÌNH PHÁT TRIỂN & BẢN ĐỒ TÍNH NĂNG HỆ THỐNG CHAT REALTIME 1-1
+                Stack: Svelte + Golang + Redis + MongoDB
+================================================================================
+
+I. TỔNG QUAN HỆ THỐNG
+--------------------------------------------------------------------------------
+Hệ thống nhắn tin cá nhân trực tiếp (Direct Messaging - 1-1) tương tự Messenger /
+Telegram. Xây dựng theo tiêu chuẩn: Gọn nhẹ, phản xạ thời gian thực mượt mà,
+xử lý đồng thời tốt và chia tách rõ ràng trách nhiệm giữa DB lưu trữ và RAM cache.
+
+
+II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
+--------------------------------------------------------------------------------
+
+[MÔ-ĐUN 1: XÁC THỰC & QUẢN LÝ NGƯỜI DÙNG (AUTHENTICATION & USER PROFILE)]
+  1.1. Đăng ký & Đăng nhập
+       - Đăng ký tài khoản (Username, Email, Mật khẩu băm bằng Bcrypt).
+       - Đăng nhập xác thực, cấp phát JSON Web Token (JWT) Access Token.
+       - Middleware bảo vệ các REST endpoint và xác thực handshake WebSocket.
+  1.2. Hồ sơ cá nhân (User Profile)
+       - Cập nhật thông tin: Tên hiển thị (Display name), Avatar, Bio ngắn.
+       - Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
+       - Tìm kiếm người dùng khác theo username hoặc email.
+
+[MÔ-ĐUN 2: QUẢN LÝ HỘI THOẠI (CONVERSATIONS)]
+  2.1. Khởi tạo & Định danh hội thoại
+       - Tự động tạo conversation giữa 2 người dùng khi gửi tin nhắn đầu tiên.
+       - Quy ước mã hội thoại chuẩn hóa (vd: sort 2 User ID theo alphabet để luôn duy nhất).
+  2.2. Danh sách cuộc hội thoại (Inbox / Recent Chats)
+       - Lấy danh sách các cuộc trò chuyện gần nhất của người dùng.
+       - Hiển thị tin nhắn cuối cùng (Last message snippet) và thời gian gửi.
+       - Hiển thị số lượng tin nhắn chưa đọc (Unread message counter).
+       - Sắp xếp hội thoại có tin nhắn mới nhất lên đầu danh sách.
+
+[MÔ-ĐUN 3: CỐT LÕI NHẮN TIN THỜI GIAN THỰC (CORE REALTIME MESSAGING)]
+  3.1. Kết nối WebSocket (Go WebSocket Hub)
+       - Handshake WebSocket an toàn qua JWT token từ client Svelte.
+       - Quản lý Client Connection Map: Ánh xạ UserID -> WebSocket Connection.
+       - Tách biệt luồng Đọc (ReadPump) và luồng Ghi (WritePump) bằng Goroutines.
+  3.2. Chu trình gửi - nhận tin nhắn
+       - Client A gửi JSON tin nhắn qua WebSocket.
+       - Backend Go tiếp nhận, validate nội dung (không rỗng, giới hạn độ dài).
+       - Gán Message ID (Snowflake hoặc MongoDB ObjectId) và Server Timestamp.
+       - Lưu trữ tin nhắn vào MongoDB (Collection: messages).
+       - Publish tin nhắn vào Redis Pub/Sub channel của người nhận.
+       - Đẩy tin nhắn xuống Client B nếu đang mở socket.
+       - Gửi lại gói tin xác nhận (ACK - Sent status) cho Client A.
+  3.3. Lịch sử tin nhắn (Message History & Pagination)
+       - Tải 30-50 tin nhắn gần nhất khi vừa mở khung chat.
+       - Cuộn ngược lên trên (Scroll to top) để tải trang cũ hơn (Cursor-based pagination dựa vào created_at hoặc _id).
+
+[MÔ-ĐUN 4: TÍNH NĂNG PHỤ TRỢ THỜI GIAN THỰC (REALTIME AUXILIARY FEATURES)]
+  4.1. Trạng thái Online / Offline (Presence)
+       - Client gửi định kỳ tín hiệu Heartbeat (Ping/Pong mỗi 15-20 giây).
+       - Redis lưu key: `user:online:{userId}` với thời gian sống (TTL = 30-40 giây).
+       - Khi mở app hoặc rớt mạng: Bắn sự kiện `user:status` (online/offline) qua Redis cho bạn chat.
+       - Hiển thị chấm xanh (Online) hoặc thời gian hoạt động gần nhất (Last seen).
+  4.2. Trạng thái đang gõ phím (Typing Indicator)
+       - Sự kiện `typing:start`: Kích hoạt khi người dùng gõ vào ô nhập.
+       - Sự kiện `typing:stop`: Tự kích hoạt sau 2-3 giây không gõ tiếp hoặc khi đã ấn gửi.
+       - Toàn bộ event đi qua Redis Pub/Sub, KHÔNG lưu vào MongoDB để bảo vệ đĩa cứng.
+       - Frontend hiển thị hiệu ứng 3 dấu chấm nhảy động (Typing animation).
+  4.3. Xác nhận đã đọc tin nhắn (Read Receipts)
+       - Khi người nhận đang mở cửa sổ chat và nhìn thấy tin nhắn -> gửi event `message:read`.
+       - Cập nhật trường `is_read = true` trong MongoDB.
+       - Reset bộ đếm Unread counter về 0.
+       - Gửi thông báo cho người gửi biết tin nhắn đã chuyển từ trạng thái "Đã nhận" sang "Đã xem" (hiển thị avatar nhỏ hoặc 2 tích xanh).
+
+[MÔ-ĐUN 5: GIAO DIỆN NGƯỜI DÙNG SVELTE (FRONTEND UI/UX)]
+  5.1. Bố cục tổng thể (Layout)
+       - Thiết kế Responsive (chia 2 cột trên Desktop: Cột trái danh sách chat, cột phải khung chat; trên Mobile chuyển thành 2 màn hình trượt).
+       - Tông màu hiện đại, hỗ trợ Dark Mode / Light Mode.
+  5.2. Khung chat chính (Chat Area)
+       - Tự động cuộn xuống cuối (Auto scroll to bottom) khi có tin nhắn mới đổ về.
+       - Giữ nguyên vị trí scroll khi đang xem tin nhắn cũ hoặc cuộn lên tải thêm lịch sử.
+       - Input soạn thảo thông minh: Tự co giãn theo số dòng, hỗ trợ phím Enter để gửi, Shift+Enter xuống dòng.
+       - Phân biệt rõ ràng bong bóng chat của mình (bên phải) và của đối phương (bên trái).
+
+[MÔ-ĐUN 6: MỞ RỘNG & TỐI ƯU (ENHANCEMENT - TÙY CHỌN BỔ SUNG)]
+  6.1. Gửi tệp đính kèm & hình ảnh
+       - REST API tải ảnh/file lên server hoặc lưu tạm trong thư mục upload.
+       - Hiển thị preview ảnh trực tiếp trong bong bóng chat.
+  6.2. Thu hồi / Xóa tin nhắn
+       - Cho phép người gửi thu hồi tin nhắn trong vòng 15-30 phút.
+       - Broadcast event `message:delete` để UI cả hai bên cập nhật lại tức thì.
+
+
+III. LỘ TRÌNH THỰC HIỆN CHI TIẾT THEO TỪNG GIAI ĐOẠN (ROADMAP)
+--------------------------------------------------------------------------------
+
+GIAI ĐOẠN 1: KHỞI TẠO HẠ TẦNG & MÔI TRƯỜNG DỮ LIỆU
+[ ] 1.1. Cài đặt Docker Desktop và kiểm tra docker-compose.
+[ ] 1.2. Khởi chạy cụm Redis 7 (cổng 6379) và MongoDB 7 (cổng 27017).
+[ ] 1.3. Kết nối MongoDB Compass / GUI kiểm tra kết nối và tạo cơ sở dữ liệu `chatapp`.
+[ ] 1.4. Thiết lập Index bắt buộc trong MongoDB cho collection `messages`:
+         `db.messages.createIndex({ conversation_id: 1, created_at: -1 })`
+
+GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH)
+[ ] 2.1. Khởi tạo Go module (`go mod init chatrealtime-backend`).
+[ ] 2.2. Thiết lập cấu trúc thư mục chuẩn (Clean Architecture):
+         ├── cmd/server/main.go
+         ├── internal/
+         │   ├── config/
+         │   ├── handlers/     (REST API & WebSocket handler)
+         │   ├── models/       (User, Conversation, Message)
+         │   ├── repository/   (Tương tác MongoDB)
+         │   ├── service/      (Logic nghiệp vụ)
+         │   └── websocket/    (Client, Hub, Pool)
+         └── pkg/utils/        (JWT, Hash password)
+[ ] 2.3. Cài đặt các thư viện Go cần thiết:
+         - Gin hoặc Fiber (REST Web Framework)
+         - Gorilla WebSocket (`github.com/gorilla/websocket`)
+         - Mongo Driver (`go.mongodb.org/mongo-driver/mongo`)
+         - Redis Client (`github.com/redis/go-redis/v9`)
+         - JWT (`github.com/golang-jwt/jwt/v5`)
+[ ] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token.
+
+GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI
+[ ] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
+[ ] 3.2. Viết `Client`: Quản lý 1 kết nối đơn lẻ, vòng lặp đọc tin (readPump) và ghi tin (writePump).
+[ ] 3.3. Tích hợp Redis Pub/Sub:
+         - Mỗi khi nhận tin nhắn 1-1, publish vào channel `user:{receiverId}`.
+         - Server subscribe channel tương ứng để đẩy tin nhắn xuống socket đích.
+[ ] 3.4. Lưu trữ tin nhắn vào MongoDB và gửi trả mã xác nhận (ACK).
+[ ] 3.5. Viết API lấy lịch sử tin nhắn của một cuộc hội thoại (phân trang theo thời gian).
+
+GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN
+[ ] 4.1. Khởi tạo project SvelteKit / Vite Svelte (`npm create svelte@latest frontend`).
+[ ] 4.2. Cài đặt CSS/Icon (Vanilla CSS đẹp, Glassmorphism, Dark mode).
+[ ] 4.3. Xây dựng trang Đăng nhập / Đăng ký, lưu JWT Token vào LocalStorage/Cookie.
+[ ] 4.4. Viết Module WebSocket client trong Svelte (tự động kết nối, tự động reconnect khi rớt mạng).
+[ ] 4.5. Hiển thị danh sách cuộc trò chuyện và bong bóng tin nhắn cơ bản.
+
+GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS)
+[ ] 5.1. Triển khai Heartbeat (Ping từ Svelte -> Go -> Redis TTL) để hiển thị Online/Offline.
+[ ] 5.2. Triển khai sự kiện `typing`: Gõ phím gửi event, bên nhận hiển thị 3 chấm nhảy động.
+[ ] 5.3. Triển khai sự kiện `read`: Mở xem tin nhắn -> đánh dấu `is_read` và cập nhật UI hai bên.
+[ ] 5.4. Xử lý âm thanh thông báo nhẹ nhàng (Notification sound) khi có tin nhắn mới.
+
+GIAI ĐOẠN 6: ĐÓNG GÓI, TEST TẢI VÀ TRIỂN KHAI (DEPLOYMENT)
+[ ] 6.1. Kiểm thử kịch bản 2 người dùng mở 2 trình duyệt khác nhau nhắn tin qua lại.
+[ ] 6.2. Kiểm tra trường hợp 1 bên tắt mạng/F5 trang: Dữ liệu tải lại đầy đủ, không mất tin nhắn.
+[ ] 6.3. Viết Dockerfile cho Backend Go (Multi-stage build cho file binary siêu nhẹ ~15-20MB).
+[ ] 6.4. Viết Dockerfile cho Frontend Svelte (build tĩnh qua Nginx).
+[ ] 6.5. Hoàn thiện tài liệu hướng dẫn chạy 1 click (`docker-compose up`).
+
+================================================================================
+KẾT LUẬN:
+Theo lộ trình trên, bạn sẽ làm chủ hoàn toàn:
+1. Tư duy kiến trúc hệ thống phân tán Realtime hiện đại (Websocket + Pub/Sub).
+2. Kỹ năng lập trình Go concurrency (Goroutine, Channel, Mutex).
+3. Sử dụng Redis hiệu quả cho In-Memory cache, Pub/Sub và TTL.
+4. Thiết kế Indexing tối ưu trong MongoDB cho bài toán Big Data / Chat.
+5. Xây dựng giao diện phản ứng nhanh, mượt mà với Svelte.
+================================================================================
