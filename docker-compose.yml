@@ -2,23 +2,23 @@ version: '3.8'
 
 services:
   redis:
-    image: redis:7
-    container_name: redis
-    restart: always
+    image: redis:7                  # Tải bản Redis 7 chính thức
+    container_name: redis           # Đặt tên container cho dễ nhớ
+    restart: always                 # Tự bật lại nếu bị crash hoặc restart máy
     ports:
-      - "6379:6379"
+      - "6379:6379"                 # Ánh xạ cổng: [Máy thật]:[Bên trong Docker]
 
   mongo:
-    image: mongo:7
+    image: mongo:7                  # Tải bản MongoDB 7 chính thức
     container_name: mongo
     restart: always
     ports:
-      - "27017:27017"
-    environment:
+      - "27017:27017"               # Cổng mặc định của MongoDB
+    environment:                    # Tài khoản quản trị khởi tạo
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password123
     volumes:
-      - mongo_data:/data/db
+      - mongo_data:/data/db         # Lưu dữ liệu ra ổ đĩa máy thật (Không bị mất dữ liệu khi tắt container)
 
 volumes:
-  mongo_data:
+  mongo_data:                       # Khai báo phân vùng lưu trữ
