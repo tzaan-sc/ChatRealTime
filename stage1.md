@@ -19,7 +19,7 @@ Tài liệu này sẽ hướng dẫn bạn từ lúc máy tính chưa có gì đ
 <a name="buoc-1-cai-dat-wsl-2--docker-desktop"></a>
 ## Bước 1: Cài đặt WSL 2 & Docker Desktop
 
-Docker trên Windows cần hệ thống Linux ảo hóa siêu nhẹ (WSL 2) để chạy các container.
+Docker trên Windows cần hệ thống Linux ảo hóa siêu nhẹ (WSL 2 (Windows Subsystem for Linux 2)) để chạy các container.
 
 ### 1.1. Bật WSL 2
 1. Mở menu Start, gõ `powershell`.
