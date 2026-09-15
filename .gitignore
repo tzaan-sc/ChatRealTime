@@ -1,0 +1,53 @@
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Environment & Secret files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+# Test binary, built with `go test -c`
+*.test
+# Output of the go coverage tool
+*.out
+go.work
+go.work.sum
+
+# Node / Svelte / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+.svelte-kit/
+build/
+.vercel/
+.output/
+
+# Docker & Database local data
+mongo_data/
+dump.rdb
+*.log
+
+# IDE & Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
