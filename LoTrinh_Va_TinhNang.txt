@@ -14,14 +14,15 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
 --------------------------------------------------------------------------------
 
 [MÔ-ĐUN 1: XÁC THỰC & QUẢN LÝ NGƯỜI DÙNG (AUTHENTICATION & USER PROFILE)]
-  1.1. Đăng ký & Đăng nhập
-       - Đăng ký tài khoản (Username, Email, Mật khẩu băm bằng Bcrypt).
-       - Đăng nhập xác thực, cấp phát JSON Web Token (JWT) Access Token.
-       - Middleware bảo vệ các REST endpoint và xác thực handshake WebSocket.
+  1.1. Đăng ký & Đăng nhập [ĐÃ HOÀN THÀNH]
+       - [x] Đăng ký tài khoản (Username, Email, Mật khẩu băm bằng Bcrypt).
+       - [x] Đăng nhập xác thực, cấp phát JSON Web Token (JWT) Access Token.
+       - [x] Middleware bảo vệ các REST endpoint và xác thực handshake WebSocket.
   1.2. Hồ sơ cá nhân (User Profile)
-       - Cập nhật thông tin: Tên hiển thị (Display name), Avatar, Bio ngắn.
-       - Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
-       - Tìm kiếm người dùng khác theo username hoặc email.
+       - [x] Lấy thông tin cá nhân hiện tại (`GET /api/auth/me`).
+       - [ ] Cập nhật thông tin: Tên hiển thị (Display name), Avatar, Bio ngắn.
+       - [ ] Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
+       - [ ] Tìm kiếm người dùng khác theo username hoặc email.
 
 [MÔ-ĐUN 2: QUẢN LÝ HỘI THOẠI (CONVERSATIONS)]
   2.1. Khởi tạo & Định danh hội thoại
@@ -89,32 +90,36 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
 III. LỘ TRÌNH THỰC HIỆN CHI TIẾT THEO TỪNG GIAI ĐOẠN (ROADMAP)
 --------------------------------------------------------------------------------
 
-GIAI ĐOẠN 1: KHỞI TẠO HẠ TẦNG & MÔI TRƯỜNG DỮ LIỆU
-[ ] 1.1. Cài đặt Docker Desktop và kiểm tra docker-compose.
-[ ] 1.2. Khởi chạy cụm Redis 7 (cổng 6379) và MongoDB 7 (cổng 27017).
-[ ] 1.3. Kết nối MongoDB Compass / GUI kiểm tra kết nối và tạo cơ sở dữ liệu `chatapp`.
-[ ] 1.4. Thiết lập Index bắt buộc trong MongoDB cho collection `messages`:
+GIAI ĐOẠN 1: KHỞI TẠO HẠ TẦNG & MÔI TRƯỜNG DỮ LIỆU [ĐÃ HOÀN THÀNH]
+[x] 1.1. Cài đặt Docker Desktop và kiểm tra docker-compose.
+[x] 1.2. Khởi chạy cụm Redis 7 (cổng 6379) và MongoDB 7 (cổng 27017).
+[x] 1.3. Kết nối MongoDB Compass / GUI kiểm tra kết nối và tạo cơ sở dữ liệu `chatapp`.
+[x] 1.4. Thiết lập Index bắt buộc trong MongoDB cho collection `messages`:
          `db.messages.createIndex({ conversation_id: 1, created_at: -1 })`
 
-GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH)
-[ ] 2.1. Khởi tạo Go module (`go mod init chatrealtime-backend`).
-[ ] 2.2. Thiết lập cấu trúc thư mục chuẩn (Clean Architecture):
+GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH) [ĐÃ HOÀN THÀNH]
+[x] 2.1. Khởi tạo Go module (`go mod init chatrealtime-backend`).
+[x] 2.2. Thiết lập cấu trúc thư mục chuẩn (Clean Architecture):
          ├── cmd/server/main.go
          ├── internal/
          │   ├── config/
+         │   ├── database/
          │   ├── handlers/     (REST API & WebSocket handler)
+         │   ├── middleware/
          │   ├── models/       (User, Conversation, Message)
          │   ├── repository/   (Tương tác MongoDB)
          │   ├── service/      (Logic nghiệp vụ)
          │   └── websocket/    (Client, Hub, Pool)
          └── pkg/utils/        (JWT, Hash password)
-[ ] 2.3. Cài đặt các thư viện Go cần thiết:
-         - Gin hoặc Fiber (REST Web Framework)
-         - Gorilla WebSocket (`github.com/gorilla/websocket`)
+[x] 2.3. Cài đặt các thư viện Go cần thiết:
+         - Gin Web Framework (`github.com/gin-gonic/gin`)
+         - Gin CORS (`github.com/gin-contrib/cors`)
          - Mongo Driver (`go.mongodb.org/mongo-driver/mongo`)
          - Redis Client (`github.com/redis/go-redis/v9`)
          - JWT (`github.com/golang-jwt/jwt/v5`)
-[ ] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token.
+         - Bcrypt (`golang.org/x/crypto/bcrypt`)
+         - GoDotEnv (`github.com/joho/godotenv`)
+[x] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token và API lấy profile `/api/auth/me`.
 
 GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI
 [ ] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
