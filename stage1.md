@@ -16,6 +16,33 @@ Tài liệu này sẽ hướng dẫn bạn từ lúc máy tính chưa có gì đ
 
 ---
 
+## 📋 Checklist Các Bước Cần Thực Hiện
+
+- [x] **1. Cài đặt WSL 2 & Docker Desktop** *(Đã hoàn thành & máy đã restart)*
+- [ ] **2. Khởi chạy Redis & MongoDB:**
+  ```powershell
+  docker compose up -d
+  ```
+- [ ] **3. Kiểm tra Container đang chạy:**
+  ```powershell
+  docker ps
+  ```
+- [ ] **4. (Tuỳ chọn) Kiểm tra thử Redis CLI:**
+  ```powershell
+  docker exec -it redis redis-cli ping
+  # Nhận lại: PONG là hoàn tất
+  ```
+- [ ] **5. Cài đặt MongoDB Compass & Kết nối:**
+  - Tải/cài MongoDB Compass (`winget install -e --id MongoDB.Compass.Full`)
+  - Kết nối URI: `mongodb://admin:password123@localhost:27017`
+- [ ] **6. Tạo Database & Thiết lập Index trong MongoDB:**
+  - Tạo Database: `chatapp`
+  - Tạo 3 Collections: `users`, `conversations`, `messages`
+  - Đánh Compound Index cho `messages`: `{ conversation_id: 1, created_at: -1 }`
+- [ ] **7. Chuyển sang Giai đoạn 2 (Backend Go):** Xem [stage2.md](file:///d:/GIT/ChatRealTime/stage2.md)
+
+---
+
 <a name="buoc-1-cai-dat-wsl-2--docker-desktop"></a>
 ## Bước 1: Cài đặt WSL 2 & Docker Desktop
 
