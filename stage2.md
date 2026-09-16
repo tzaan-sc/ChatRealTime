@@ -119,7 +119,8 @@ go get -u github.com/joho/godotenv
 ---
 
 <a name="buoc-4-viet-ma-nguon-chi-tiet-tung-file"></a>
-## Bước 4: Viết mã nguồn chi tiết từng file
+
+#### Bước 4: Viết mã nguồn chi tiết từng file (Đăng ký, đăng nhập, lấy thông tin qua jwt)
 
 ### 4.1. File cấu hình môi trường `.env`
 Tạo file `backend/.env`:
