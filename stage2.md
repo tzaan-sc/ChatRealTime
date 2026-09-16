@@ -133,7 +133,7 @@ JWT_SECRET=super_secret_key_chatapp_2026
 
 ---
 
-### 4.2. Khởi tạo Models
+### 4.2. Khởi tạo Models (Định nghĩa cấu trúc dữ liệu User lưu trong MongoDB)
 Tạo file `backend/internal/models/user.go`:
 ```go
 package models
@@ -179,7 +179,7 @@ type AuthResponse struct {
 
 ---
 
-### 4.3. Tiện ích Mật khẩu & JWT
+### 4.3. Tiện ích bảo mật (Mật khẩu & JWT) (Băm mật khẩu bằng Bcrypt, tạo và giải mã JWT Token)
 
 #### File `backend/pkg/utils/password.go`:
 ```go
@@ -252,7 +252,7 @@ func ValidateToken(tokenString, secretKey string) (*JWTClaims, error) {
 
 ---
 
-### 4.4. Kết nối Database
+### 4.4. Kết nối Database (Quản lý kết nối tới MongoDB và Redis)
 Tạo file `backend/internal/database/db.go`:
 ```go
 package database
@@ -312,7 +312,7 @@ func InitDatabase() {
 
 ---
 
-### 4.5. Tầng Repository
+### 4.5. Tầng Repository (Tầng truy vấn DB: Thêm user mới, tìm user theo username/email/ID)
 Tạo file `backend/internal/repository/user_repo.go`:
 ```go
 package repository
@@ -393,7 +393,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User,
 
 ---
 
-### 4.6. Tầng Service
+### 4.6. Tầng Service (Tầng nghiệp vụ: Đăng ký, Đăng nhập, kiểm tra logic)
 Tạo file `backend/internal/service/auth_service.go`:
 ```go
 package service
@@ -510,7 +510,7 @@ func (s *AuthService) GetUserProfile(ctx context.Context, userID string) (*model
 
 ---
 
-### 4.7. Tầng Handlers & Middleware
+### 4.7. Tầng Handlers (Nhận HTTP request, trả JSON) & Middleware (Chặn request chưa đăng nhập & Xác thực Token)
 
 #### Middleware xác thực JWT: `backend/internal/middleware/auth_middleware.go`
 ```go
@@ -643,7 +643,7 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 
 ---
 
-### 4.8. File chạy chính
+### 4.8. File chạy chính (File chạy chính, định tuyến router và khởi động HTTP Server trên cổng 8080)
 Tạo file `backend/cmd/server/main.go`:
 ```go
 package main

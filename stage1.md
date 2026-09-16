@@ -5,6 +5,35 @@ Tài liệu này sẽ hướng dẫn bạn từ lúc máy tính chưa có gì đ
 
 ---
 
+## 📊 Trạng Thái Kiểm Tra Cấu Hình Hệ Thống
+
+| Thành phần | Trạng thái | Chi tiết |
+| :--- | :---: | :--- |
+| **Golang** | ✅ **Sẵn sàng** | Phiên bản `go1.27.0 windows/amd64` |
+| **Docker Containers** | ✅ **Sẵn sàng** | Cả 2 container `redis` và `mongo` đều đang chạy (Up) |
+| **Redis 7** | ✅ **Sẵn sàng** | Kết nối cổng `6379` hoạt động tốt, phản hồi `PONG` |
+| **MongoDB 7** | ✅ **Sẵn sàng** | Database `chatapp` đã tạo đủ 3 collection: `users`, `conversations`, `messages` |
+| **MongoDB Index** | ✅ **Sẵn sàng** | Đã đánh index kép `{"conversation_id": 1, "created_at": -1}` cho `messages` |
+| **Go Dependencies** | ✅ **Sẵn sàng** | [go.mod](file:///d:/GIT/ChatRealTime/backend/go.mod) đã nạp đủ các thư viện (`gin`, `mongo-driver`, `go-redis`, `jwt`, `bcrypt`, `godotenv`) |
+| **Cấu hình môi trường** | ✅ **Sẵn sàng** | File [.env](file:///d:/GIT/ChatRealTime/backend/.env) và cây thư mục Clean Architecture đã được chuẩn bị đầy đủ |
+
+---
+
+## 📋 Checklist Tiến Độ Giai Đoạn 1
+
+- [x] **1. Cài đặt WSL 2 & Docker Desktop** *(Đã hoàn thành)*
+- [x] **2. Khởi chạy Redis & MongoDB:** `docker compose up -d` *(Đã hoàn thành)*
+- [x] **3. Kiểm tra Container đang chạy:** `docker ps` *(Đã hoàn thành)*
+- [x] **4. Kiểm tra Redis CLI:** `docker exec -it redis redis-cli ping` $\to$ `PONG` *(Đã hoàn thành)*
+- [x] **5. Cài đặt MongoDB Compass & Kết nối:** `mongodb://admin:password123@localhost:27017` *(Đã hoàn thành)*
+- [x] **6. Tạo Database & Thiết lập Index trong MongoDB:**
+  - [x] Database: `chatapp`
+  - [x] 3 Collections: `users`, `conversations`, `messages`
+  - [x] Compound Index cho `messages`: `{ conversation_id: 1, created_at: -1 }` *(Đã hoàn thành)*
+- [x] **7. Chuyển sang Giai đoạn 2 (Backend Go):** Xem [stage2.md](file:///d:/GIT/ChatRealTime/stage2.md)
+
+---
+
 ## Mục lục
 1. [Bước 1: Cài đặt WSL 2 & Docker Desktop](#buoc-1-cai-dat-wsl-2--docker-desktop)
 2. [Bước 2: Hiểu cấu trúc file `docker-compose.yml`](#buoc-2-hieu-cau-truc-file-docker-composeyml)
@@ -13,33 +42,6 @@ Tài liệu này sẽ hướng dẫn bạn từ lúc máy tính chưa có gì đ
 5. [Bước 5: Cài đặt MongoDB Compass & Kết nối CSDL](#buoc-5-cai-dat-mongodb-compass--ket-noi-csdl)
 6. [Bước 6: Tạo Database, Collections và thiết lập Index tối ưu](#buoc-6-tao-database-collections-va-thiet-lap-index-toi-uu)
 7. [Các câu lệnh thường dùng & Xử lý sự cố thường gặp (FAQ)](#cac-cau-lenh-thuong-dung--xu-ly-su-co-thuong-gap-faq)
-
----
-
-## 📋 Checklist Các Bước Cần Thực Hiện
-
-- [x] **1. Cài đặt WSL 2 & Docker Desktop** *(Đã hoàn thành & máy đã restart)*
-- [ ] **2. Khởi chạy Redis & MongoDB:**
-  ```powershell
-  docker compose up -d
-  ```
-- [ ] **3. Kiểm tra Container đang chạy:**
-  ```powershell
-  docker ps
-  ```
-- [ ] **4. (Tuỳ chọn) Kiểm tra thử Redis CLI:**
-  ```powershell
-  docker exec -it redis redis-cli ping
-  # Nhận lại: PONG là hoàn tất
-  ```
-- [ ] **5. Cài đặt MongoDB Compass & Kết nối:**
-  - Tải/cài MongoDB Compass (`winget install -e --id MongoDB.Compass.Full`)
-  - Kết nối URI: `mongodb://admin:password123@localhost:27017`
-- [ ] **6. Tạo Database & Thiết lập Index trong MongoDB:**
-  - Tạo Database: `chatapp`
-  - Tạo 3 Collections: `users`, `conversations`, `messages`
-  - Đánh Compound Index cho `messages`: `{ conversation_id: 1, created_at: -1 }`
-- [ ] **7. Chuyển sang Giai đoạn 2 (Backend Go):** Xem [stage2.md](file:///d:/GIT/ChatRealTime/stage2.md)
 
 ---
 
