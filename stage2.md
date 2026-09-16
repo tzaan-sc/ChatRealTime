@@ -120,8 +120,8 @@ go get -u github.com/joho/godotenv
 
 <a name="buoc-4-viet-ma-nguon-chi-tiet-tung-file"></a>
 
-#### Bước 4: Viết mã nguồn chi tiết từng file (Đăng ký, đăng nhập, lấy thông tin qua jwt)
-
+## Bước 4: Viết mã nguồn chi tiết từng file 
+### 4.(Đăng ký, đăng nhập, lấy thông tin qua jwt)
 ### 4.1. File cấu hình môi trường `.env`
 Tạo file `backend/.env`:
 ```ini
@@ -729,13 +729,28 @@ Khi thấy dòng:
 🚀 Server đang lắng nghe tại cổng http://localhost:8080
 ```
 $\to$ Server Go của bạn đã sẵn sàng nhận kết nối!
+```txt
+- Khi chạy lệnh này: Go sẽ khởi động ứng dụng Backend của bạn, tự động kết nối vào MongoDB và Redis (trong Docker), rồi mở cổng 8080 trên máy để chờ nhận các yêu cầu (request) từ trình duyệt/Postman/Frontend.
+- Khi Terminal đang chạy: Màn hình sẽ dừng lại ở trạng thái lắng nghe (như bạn đang thấy trên máy hiện tại). Muốn tắt server thì chỉ cần nhấn tổ hợp phím Ctrl + C.
+```
 
 ---
 
-### 5.2. Kiểm thử API bằng cURL / Postman / Thunder Client
+### 5.2. Hướng dẫn chi tiết kiểm thử (Test) API (cURL / Postman / Thunder Client)
 
-#### 1. Đăng ký tài khoản mới (`POST http://localhost:8080/api/auth/register`):
-* **Body (JSON):**
+> 💡 **Khuyên dùng:** Bạn có thể cài extension **Thunder Client** hoặc **Postman** ngay trên VS Code / IDE để test trực quan bằng giao diện đồ họa.
+
+---
+
+#### 🌟 Cách 1: Sử dụng Extension Thunder Client / Postman (Trực quan nhất)
+
+1. **Cài đặt:** Mở mục **Extensions** (biểu tượng 4 ô vuông bên trái) $\to$ Tìm kiếm và cài đặt `Thunder Client` (hoặc `Postman`).
+2. **Thực hiện các Request kiểm thử:**
+
+##### 👉 Test 1: Đăng ký tài khoản mới (Register)
+* **Method:** `POST`
+* **URL:** `http://localhost:8080/api/auth/register`
+* **Tab Body:** Chọn định dạng `JSON` và dán nội dung:
   ```json
   {
     "username": "alex",
@@ -744,37 +759,70 @@ $\to$ Server Go của bạn đã sẵn sàng nhận kết nối!
     "display_name": "Alex Nguyen"
   }
   ```
-* **Kết quả trả về (201 Created):**
+* **Bấm Send:**
+  * **Status:** `201 Created`
+  * **Response:** Nhận về JSON chứa thông tin user và chuỗi `token`. Hãy **copy chuỗi token** này để dùng cho Test 3.
   ```json
   {
     "message": "Đăng ký tài khoản thành công",
     "data": {
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
       "user": {
-        "id": "65f1c9...",
+        "id": "6aaa2b72d6a66961448e5a9f",
         "username": "alex",
         "email": "alex@gmail.com",
         "display_name": "Alex Nguyen",
-        "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=alex"
+        "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=alex",
+        "created_at": "...",
+        "updated_at": "..."
       }
     }
   }
   ```
 
-#### 2. Đăng nhập (`POST http://localhost:8080/api/auth/login`):
-* **Body (JSON):**
+##### 👉 Test 2: Đăng nhập (Login)
+* **Method:** `POST`
+* **URL:** `http://localhost:8080/api/auth/login`
+* **Tab Body:** Chọn `JSON`:
   ```json
   {
     "username": "alex",
     "password": "password123"
   }
   ```
-* Nhận về chuỗi `token`.
+* **Bấm Send:** Nhận mã `200 OK` kèm chuỗi `token` truy cập.
 
-#### 3. Lấy thông tin cá nhân (`GET http://localhost:8080/api/auth/me`):
-* **Headers:**
-  * `Authorization`: `Bearer <chuỗi_token_vừa_nhận_ở_trên>`
-* **Kết quả:** Trả về đầy đủ thông tin User hiện tại mà không lộ mật khẩu.
+##### 👉 Test 3: Lấy thông tin cá nhân qua JWT (GetMe - Protected Route)
+* **Method:** `GET`
+* **URL:** `http://localhost:8080/api/auth/me`
+* **Tab Headers:** Thêm Header xác thực:
+  * **Key:** `Authorization`
+  * **Value:** `Bearer <dán_chuỗi_token_vừa_copy_ở_trên>`
+* **Bấm Send:** Nhận mã `200 OK` và dữ liệu cá nhân của user đang đăng nhập (mật khẩu đã được ẩn hoàn toàn).
+
+---
+
+#### ⚡ Cách 2: Kiểm thử nhanh bằng lệnh PowerShell
+*(Mở 1 cửa sổ PowerShell mới trong khi server đang chạy)*:
+
+```powershell
+# 1. Đăng ký tài khoản
+$regBody = @{ username='alex'; email='alex@gmail.com'; password='password123'; display_name='Alex Nguyen' } | ConvertTo-Json
+$res = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/register" -Method Post -ContentType "application/json" -Body $regBody
+$token = $res.data.token
+Write-Host "Token nhận được:" $token
+
+# 2. Lấy thông tin cá nhân qua Token
+$headers = @{ Authorization = "Bearer $token" }
+Invoke-RestMethod -Uri "http://localhost:8080/api/auth/me" -Method Get -Headers $headers | ConvertTo-Json
+```
+
+---
+
+#### 👁️ Cách 3: Kiểm tra trực tiếp dữ liệu trong MongoDB Compass
+1. Mở phần mềm **MongoDB Compass** $\to$ Bấm **Connect** (`mongodb://admin:password123@localhost:27017`).
+2. Chọn Database **`chatapp`** $\to$ Collection **`users`**.
+3. Bạn sẽ thấy bản ghi user vừa tạo đã được lưu vào MongoDB, trong đó mật khẩu đã được băm an toàn (`$2a$10$...`) bằng thuật toán Bcrypt.
 
 ---
 
