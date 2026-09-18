@@ -9,6 +9,7 @@ import (
 	"chatrealtime-backend/internal/middleware"
 	"chatrealtime-backend/internal/repository"
 	"chatrealtime-backend/internal/service"
+	"chatrealtime-backend/internal/websocket"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -16,44 +17,66 @@ import (
 )
 
 func main() {
-	// 1. Nạp file .env
+	// 1. Nạp biến môi trường
 	if err := godotenv.Load(); err != nil {
-		log.Println("Chú ý: Không tìm thấy file .env, sử dụng biến môi trường hệ thống")
+		log.Println("Chú ý: Sử dụng biến môi trường hệ thống")
 	}
 
 	// 2. Khởi tạo Database (MongoDB & Redis)
 	database.InitDatabase()
 
-	// 3. Khởi tạo các tầng phụ thuộc (Dependency Injection)
+	// 3. Khởi tạo các Repositories
 	userRepo := repository.NewUserRepository(database.MongoDB)
+	msgRepo := repository.NewMessageRepository(database.MongoDB)
+	convRepo := repository.NewConversationRepository(database.MongoDB)
+
+	// 4. Khởi tạo WebSocket Hub và chạy ngầm
+	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo)
+	go hub.Run()
+
+	// 5. Khởi tạo Services
 	authService := service.NewAuthService(userRepo)
+	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
+
+	// 6. Khởi tạo Handlers
 	authHandler := handlers.NewAuthHandler(authService)
+	chatHandler := handlers.NewChatHandler(chatService)
+	wsHandler := handlers.NewWSHandler(hub)
 
-	// 4. Khởi tạo Gin Router
+	// 7. Khởi tạo Router
 	r := gin.Default()
-
-	// Cấu hình CORS để Frontend Svelte gọi API mà không bị chặn
 	r.Use(cors.Default())
 
-	// 5. Khai báo các Routes
+	// Endpoint WebSocket
+	r.GET("/ws", wsHandler.HandleWS)
+
+	// REST API Routes
 	api := r.Group("/api")
 	{
+		// Auth Routes
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
-			// Route cần có Token
 			auth.GET("/me", middleware.AuthMiddleware(), authHandler.GetMe)
+		}
+
+		// Chat Routes (Cần xác thực Token)
+		chat := api.Group("/chat", middleware.AuthMiddleware())
+		{
+			chat.GET("/conversations", chatHandler.GetConversations)
+			chat.GET("/messages/:conversation_id", chatHandler.GetMessages)
+			chat.POST("/messages/:conversation_id/read", chatHandler.MarkAsRead)
+			chat.GET("/users", chatHandler.GetUsers)
 		}
 	}
 
-	// 6. Chạy Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	log.Printf("🚀 Server đang lắng nghe tại cổng http://localhost:%s\n", port)
+	log.Printf("🚀 Server Chat Realtime đang chạy tại http://localhost:%s\n", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Không thể khởi động server: %v", err)
 	}
