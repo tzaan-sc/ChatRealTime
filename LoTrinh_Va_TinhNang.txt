@@ -121,14 +121,14 @@ GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH) [ĐÃ HOÀN TH�
          - GoDotEnv (`github.com/joho/godotenv`)
 [x] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token và API lấy profile `/api/auth/me`.
 
-GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI
-[ ] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
-[ ] 3.2. Viết `Client`: Quản lý 1 kết nối đơn lẻ, vòng lặp đọc tin (readPump) và ghi tin (writePump).
-[ ] 3.3. Tích hợp Redis Pub/Sub:
+GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI [ĐÃ HOÀN THÀNH CODE]
+[x] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
+[x] 3.2. Viết `Client`: Quản lý 1 kết nối đơn lẻ, vòng lặp đọc tin (readPump) và ghi tin (writePump).
+[x] 3.3. Tích hợp Redis Pub/Sub:
          - Mỗi khi nhận tin nhắn 1-1, publish vào channel `user:{receiverId}`.
          - Server subscribe channel tương ứng để đẩy tin nhắn xuống socket đích.
-[ ] 3.4. Lưu trữ tin nhắn vào MongoDB và gửi trả mã xác nhận (ACK).
-[ ] 3.5. Viết API lấy lịch sử tin nhắn của một cuộc hội thoại (phân trang theo thời gian).
+[x] 3.4. Lưu trữ tin nhắn vào MongoDB và gửi trả mã xác nhận (ACK).
+[x] 3.5. Viết API lấy lịch sử tin nhắn của một cuộc hội thoại (phân trang theo thời gian).
 
 GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN
 [ ] 4.1. Khởi tạo project SvelteKit / Vite Svelte (`npm create svelte@latest frontend`).

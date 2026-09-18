@@ -7,25 +7,25 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng một hệ
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 3
 
-- [ ] **1. Cài đặt thư viện WebSocket (`gorilla/websocket`):**
+- [x] **1. Cài đặt thư viện WebSocket (`gorilla/websocket`):**
   ```powershell
   go get github.com/gorilla/websocket
   ```
-- [ ] **2. Tạo Models cho Hội thoại & Tin nhắn:**
+- [x] **2. Tạo Models cho Hội thoại & Tin nhắn:**
   - `internal/models/message.go`
   - `internal/models/conversation.go`
   - `internal/models/ws_event.go`
-- [ ] **3. Xây dựng tầng Repository (MongoDB):**
+- [x] **3. Xây dựng tầng Repository (MongoDB):**
   - `internal/repository/message_repo.go`
   - `internal/repository/conversation_repo.go`
-- [ ] **4. Xây dựng WebSocket Hub & Client:**
+- [x] **4. Xây dựng WebSocket Hub & Client:**
   - `internal/websocket/client.go` (ReadPump, WritePump, Ping/Pong)
   - `internal/websocket/hub.go` (Client Map, Register, Unregister, Redis Pub/Sub)
-- [ ] **5. Viết tầng Service & Handlers:**
+- [x] **5. Viết tầng Service & Handlers:**
   - `internal/service/chat_service.go`
   - `internal/handlers/chat_handler.go`
   - `internal/handlers/ws_handler.go`
-- [ ] **6. Cập nhật Router trong `cmd/server/main.go`**
+- [x] **6. Cập nhật Router trong `cmd/server/main.go`**
 - [ ] **7. Kiểm thử WebSocket & Chat 1-1 qua Postman / Browser Console**
 
 ---
