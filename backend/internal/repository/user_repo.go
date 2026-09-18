@@ -72,3 +72,24 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User,
 	}
 	return &user, nil
 }
+
+// FindAllExcept lấy danh sách user khác bản thân
+func (r *UserRepository) FindAllExcept(ctx context.Context, currentUserID string) ([]models.User, error) {
+	objID, err := primitive.ObjectIDFromHex(currentUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{"_id": bson.M{"$ne": objID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []models.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
