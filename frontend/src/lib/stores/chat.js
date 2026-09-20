@@ -7,6 +7,12 @@ export const activeConversation = writable(null); // { conversation, other_user 
 export const currentMessages = writable([]);
 export const userDirectory = writable([]);
 
+// Set các User ID đang online (Ví dụ: Set(['id1', 'id2']))
+export const onlineUsers = writable(new Set());
+
+// Set các User ID đang gõ phím vào khung chat
+export const typingUsers = writable(new Set());
+
 // Tải danh sách hội thoại
 export async function loadConversations() {
   const t = get(token);
@@ -19,7 +25,7 @@ export async function loadConversations() {
   }
 }
 
-// Tải lịch sử tin nhắn của cuộc trò chuyện được chọn
+// Chọn cuộc trò chuyện và tải lịch sử
 export async function selectConversation(convItem) {
   activeConversation.set(convItem);
   const t = get(token);
@@ -27,7 +33,7 @@ export async function selectConversation(convItem) {
   try {
     const res = await apiRequest(`/chat/messages/${convID}?limit=50`, 'GET', null, t);
     currentMessages.set(res.data || []);
-    // Đánh dấu đã xem
+    // Đánh dấu đã xem trên server
     apiRequest(`/chat/messages/${convID}/read`, 'POST', null, t);
   } catch (err) {
     console.error('Lỗi tải tin nhắn:', err);
@@ -40,5 +46,41 @@ export function appendMessage(msg) {
   if (active && active.conversation?.custom_id === msg.conversation_id) {
     currentMessages.update((msgs) => [...msgs, msg]);
   }
-  loadConversations(); // Cập nhật lại danh sách hội thoại và tin nhắn cuối
+  loadConversations();
+}
+
+// Cập nhật trạng thái tin nhắn đã đọc khi nhận event chat:read_ack
+export function markMessagesAsReadLocally(convID) {
+  const active = get(activeConversation);
+  if (active && active.conversation?.custom_id === convID) {
+    currentMessages.update((msgs) =>
+      msgs.map((m) => ({ ...m, is_read: true }))
+    );
+  }
+}
+
+// Cập nhật trạng thái Online / Offline
+export function setUserOnlineStatus(userID, isOnline) {
+  onlineUsers.update((set) => {
+    const next = new Set(set);
+    if (isOnline) {
+      next.add(userID);
+    } else {
+      next.delete(userID);
+    }
+    return next;
+  });
+}
+
+// Cập nhật trạng thái Đang gõ phím
+export function setUserTyping(userID, isTyping) {
+  typingUsers.update((set) => {
+    const next = new Set(set);
+    if (isTyping) {
+      next.add(userID);
+    } else {
+      next.delete(userID);
+    }
+    return next;
+  });
 }

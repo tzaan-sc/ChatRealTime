@@ -21,35 +21,35 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
   1.2. Hồ sơ cá nhân (User Profile)
        - [x] Lấy thông tin cá nhân hiện tại (`GET /api/auth/me`).
        - [ ] Cập nhật thông tin: Tên hiển thị (Display name), Avatar, Bio ngắn.
-       - [ ] Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
-       - [ ] Tìm kiếm người dùng khác theo username hoặc email.
+       - [x] Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
+       - [x] Tìm kiếm người dùng khác theo username hoặc email.
 
-[MÔ-ĐUN 2: QUẢN LÝ HỘI THOẠI (CONVERSATIONS)]
+[MÔ-ĐUN 2: QUẢN LÝ HỘI THOẠI (CONVERSATIONS)] [ĐÃ HOÀN THÀNH]
   2.1. Khởi tạo & Định danh hội thoại
-       - Tự động tạo conversation giữa 2 người dùng khi gửi tin nhắn đầu tiên.
-       - Quy ước mã hội thoại chuẩn hóa (vd: sort 2 User ID theo alphabet để luôn duy nhất).
+       - [x] Tự động tạo conversation giữa 2 người dùng khi gửi tin nhắn đầu tiên.
+       - [x] Quy ước mã hội thoại chuẩn hóa (vd: sort 2 User ID theo alphabet để luôn duy nhất).
   2.2. Danh sách cuộc hội thoại (Inbox / Recent Chats)
-       - Lấy danh sách các cuộc trò chuyện gần nhất của người dùng.
-       - Hiển thị tin nhắn cuối cùng (Last message snippet) và thời gian gửi.
-       - Hiển thị số lượng tin nhắn chưa đọc (Unread message counter).
-       - Sắp xếp hội thoại có tin nhắn mới nhất lên đầu danh sách.
+       - [x] Lấy danh sách các cuộc trò chuyện gần nhất của người dùng.
+       - [x] Hiển thị tin nhắn cuối cùng (Last message snippet) và thời gian gửi.
+       - [x] Hiển thị số lượng tin nhắn chưa đọc (Unread message counter).
+       - [x] Sắp xếp hội thoại có tin nhắn mới nhất lên đầu danh sách.
 
-[MÔ-ĐUN 3: CỐT LÕI NHẮN TIN THỜI GIAN THỰC (CORE REALTIME MESSAGING)]
+[MÔ-ĐUN 3: CỐT LÕI NHẮN TIN THỜI GIAN THỰC (CORE REALTIME MESSAGING)] [ĐÃ HOÀN THÀNH]
   3.1. Kết nối WebSocket (Go WebSocket Hub)
-       - Handshake WebSocket an toàn qua JWT token từ client Svelte.
-       - Quản lý Client Connection Map: Ánh xạ UserID -> WebSocket Connection.
-       - Tách biệt luồng Đọc (ReadPump) và luồng Ghi (WritePump) bằng Goroutines.
+       - [x] Handshake WebSocket an toàn qua JWT token từ client Svelte.
+       - [x] Quản lý Client Connection Map: Ánh xạ UserID -> WebSocket Connection.
+       - [x] Tách biệt luồng Đọc (ReadPump) và luồng Ghi (WritePump) bằng Goroutines.
   3.2. Chu trình gửi - nhận tin nhắn
-       - Client A gửi JSON tin nhắn qua WebSocket.
-       - Backend Go tiếp nhận, validate nội dung (không rỗng, giới hạn độ dài).
-       - Gán Message ID (Snowflake hoặc MongoDB ObjectId) và Server Timestamp.
-       - Lưu trữ tin nhắn vào MongoDB (Collection: messages).
-       - Publish tin nhắn vào Redis Pub/Sub channel của người nhận.
-       - Đẩy tin nhắn xuống Client B nếu đang mở socket.
-       - Gửi lại gói tin xác nhận (ACK - Sent status) cho Client A.
+       - [x] Client A gửi JSON tin nhắn qua WebSocket.
+       - [x] Backend Go tiếp nhận, validate nội dung (không rỗng, giới hạn độ dài).
+       - [x] Gán Message ID (Snowflake hoặc MongoDB ObjectId) và Server Timestamp.
+       - [x] Lưu trữ tin nhắn vào MongoDB (Collection: messages).
+       - [x] Publish tin nhắn vào Redis Pub/Sub channel của người nhận.
+       - [x] Đẩy tin nhắn xuống Client B nếu đang mở socket.
+       - [x] Gửi lại gói tin xác nhận (ACK - Sent status) cho Client A.
   3.3. Lịch sử tin nhắn (Message History & Pagination)
-       - Tải 30-50 tin nhắn gần nhất khi vừa mở khung chat.
-       - Cuộn ngược lên trên (Scroll to top) để tải trang cũ hơn (Cursor-based pagination dựa vào created_at hoặc _id).
+       - [x] Tải 30-50 tin nhắn gần nhất khi vừa mở khung chat.
+       - [ ] Cuộn ngược lên trên (Scroll to top) để tải trang cũ hơn (Cursor-based pagination dựa vào created_at hoặc _id).
 
 [MÔ-ĐUN 4: TÍNH NĂNG PHỤ TRỢ THỜI GIAN THỰC (REALTIME AUXILIARY FEATURES)]
   4.1. Trạng thái Online / Offline (Presence)
@@ -68,15 +68,15 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
        - Reset bộ đếm Unread counter về 0.
        - Gửi thông báo cho người gửi biết tin nhắn đã chuyển từ trạng thái "Đã nhận" sang "Đã xem" (hiển thị avatar nhỏ hoặc 2 tích xanh).
 
-[MÔ-ĐUN 5: GIAO DIỆN NGƯỜI DÙNG SVELTE (FRONTEND UI/UX)]
+[MÔ-ĐUN 5: GIAO DIỆN NGƯỜI DÙNG SVELTE (FRONTEND UI/UX)] [ĐÃ HOÀN THÀNH CƠ BẢN]
   5.1. Bố cục tổng thể (Layout)
-       - Thiết kế Responsive (chia 2 cột trên Desktop: Cột trái danh sách chat, cột phải khung chat; trên Mobile chuyển thành 2 màn hình trượt).
-       - Tông màu hiện đại, hỗ trợ Dark Mode / Light Mode.
+       - [x] Thiết kế chia 2 cột trên Desktop: Cột trái danh sách chat, cột phải khung chat.
+       - [x] Tông màu hiện đại Cyber Dark, Glassmorphism, Dark mode.
   5.2. Khung chat chính (Chat Area)
-       - Tự động cuộn xuống cuối (Auto scroll to bottom) khi có tin nhắn mới đổ về.
-       - Giữ nguyên vị trí scroll khi đang xem tin nhắn cũ hoặc cuộn lên tải thêm lịch sử.
-       - Input soạn thảo thông minh: Tự co giãn theo số dòng, hỗ trợ phím Enter để gửi, Shift+Enter xuống dòng.
-       - Phân biệt rõ ràng bong bóng chat của mình (bên phải) và của đối phương (bên trái).
+       - [x] Tự động cuộn xuống cuối (Auto scroll to bottom) khi có tin nhắn mới đổ về.
+       - [ ] Giữ nguyên vị trí scroll khi đang xem tin nhắn cũ hoặc cuộn lên tải thêm lịch sử.
+       - [x] Input soạn thảo thông minh: hỗ trợ phím Enter để gửi, Shift+Enter xuống dòng.
+       - [x] Phân biệt rõ ràng bong bóng chat của mình (bên phải) và của đối phương (bên trái).
 
 [MÔ-ĐUN 6: MỞ RỘNG & TỐI ƯU (ENHANCEMENT - TÙY CHỌN BỔ SUNG)]
   6.1. Gửi tệp đính kèm & hình ảnh
@@ -140,7 +140,7 @@ GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN [ĐÃ HO�
 GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS) [ĐANG TRIỂN KHAI]
 [x] 5.1. Triển khai Backend Presence (Redis TTL 30s + Heartbeat), Typing & Read Receipts Hub.
 [x] 5.2. Tạo utility phát âm thanh thông báo pop nhẹ nhàng (sound.js bằng Web Audio API).
-[ ] 5.3. Nâng cấp store Svelte (onlineUsers, typingUsers) & tích hợp vào UI.
+[x] 5.3. Nâng cấp store Svelte (onlineUsers, typingUsers) & tích hợp vào UI.
 [ ] 5.4. Hoàn thiện Typing indicator animation và 2 tích xanh Read receipts trên Svelte.
 
 GIAI ĐOẠN 6: ĐÓNG GÓI, TEST TẢI VÀ TRIỂN KHAI (DEPLOYMENT)

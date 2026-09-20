@@ -18,10 +18,10 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
   - [x] Xử lý sự kiện `chat:read`: Đánh dấu đã đọc trong MongoDB và bắn `chat:read_ack` về cho người gửi.
 - [x] **2. Tạo tiện ích âm thanh thông báo (`frontend/src/lib/utils/sound.js`):**
   - [x] Viết hàm `playNotificationSound()` bằng Web Audio API thuần.
-- [ ] **3. Nâng cấp Store Chat (`frontend/src/lib/stores/chat.js`):**
-  - [ ] Thêm store `onlineUsers` lưu danh sách ID người đang online.
-  - [ ] Thêm store `typingUsers` lưu trạng thái ai đang gõ tin nhắn.
-  - [ ] Thêm hàm đánh dấu tin nhắn đã đọc `markMessagesAsReadLocally()`.
+- [x] **3. Nâng cấp Store Chat (`frontend/src/lib/stores/chat.js`):**
+  - [x] Thêm store `onlineUsers` lưu danh sách ID người đang online.
+  - [x] Thêm store `typingUsers` lưu trạng thái ai đang gõ tin nhắn.
+  - [x] Thêm hàm đánh dấu tin nhắn đã đọc `markMessagesAsReadLocally()`.
 - [ ] **4. Nâng cấp `ChatArea.svelte`:**
   - [ ] Bắt sự kiện gõ phím trong `<textarea>`, gửi `typing:start` và debounce 2s gửi `typing:stop`.
   - [ ] Hiển thị animation 3 dấu chấm nhảy sinh động khi đối phương đang gõ.
