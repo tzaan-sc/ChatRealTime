@@ -11,11 +11,11 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 5
 
-- [ ] **1. Cập nhật Backend Go (`internal/websocket/hub.go`):**
-  - [ ] Xử lý sự kiện `heartbeat` & lưu Redis key `user:online:{userId}` với TTL 30s.
-  - [ ] Tự động broadcast `user:status` (online = true/false) khi client kết nối & ngắt kết nối.
-  - [ ] Chuyển tiếp sự kiện `typing:start` và `typing:stop` qua Redis Pub/Sub tới đối phương.
-  - [ ] Xử lý sự kiện `chat:read`: Đánh dấu đã đọc trong MongoDB và bắn `chat:read_ack` về cho người gửi.
+- [x] **1. Cập nhật Backend Go (`internal/websocket/hub.go`):**
+  - [x] Xử lý sự kiện `heartbeat` & lưu Redis key `user:online:{userId}` với TTL 30s.
+  - [x] Tự động broadcast `user:status` (online = true/false) khi client kết nối & ngắt kết nối.
+  - [x] Chuyển tiếp sự kiện `typing:start` và `typing:stop` qua Redis Pub/Sub tới đối phương.
+  - [x] Xử lý sự kiện `chat:read`: Đánh dấu đã đọc trong MongoDB và bắn `chat:read_ack` về cho người gửi.
 - [ ] **2. Tạo tiện ích âm thanh thông báo (`frontend/src/lib/utils/sound.js`):**
   - [ ] Viết hàm `playNotificationSound()` bằng Web Audio API thuần.
 - [ ] **3. Nâng cấp Store Chat (`frontend/src/lib/stores/chat.js`):**
