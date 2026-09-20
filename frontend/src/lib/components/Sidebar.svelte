@@ -6,15 +6,22 @@
   import { MessageSquarePlus, LogOut, Search } from 'lucide-svelte';
 
   let showUsersModal = false;
+  let loadingUsers = false;
+  let usersError = '';
   let searchQuery = '';
 
   async function openNewChatModal() {
     showUsersModal = true;
+    loadingUsers = true;
+    usersError = '';
     try {
       const res = await apiRequest('/chat/users', 'GET', null, $token);
       userDirectory.set(res.data || []);
     } catch (e) {
-      console.error(e);
+      console.error('Lỗi tải danh bạ:', e);
+      usersError = e.message || 'Không thể tải danh sách người dùng';
+    } finally {
+      loadingUsers = false;
     }
   }
 
@@ -91,19 +98,31 @@
 <!-- Modal Chọn Bạn Chat Mới -->
 {#if showUsersModal}
   <div class="modal-overlay" on:click={() => (showUsersModal = false)}>
-    <div class="modal-box glass-card" on:click|stopPropagation>
-      <h3>Bắt đầu cuộc trò chuyện</h3>
-      <div class="user-list">
-        {#each $userDirectory as u}
-          <div class="user-item" on:click={() => startChatWithUser(u)}>
-            <img src={u.avatar_url} alt="avatar" class="avatar" />
-            <div>
-              <p class="u-name">{u.display_name}</p>
-              <p class="u-sub">@{u.username}</p>
-            </div>
-          </div>
-        {/each}
+    <div class="modal-box glass-card" on:click={(e) => e.stopPropagation()}>
+      <div class="modal-top">
+        <h3>Bắt đầu cuộc trò chuyện</h3>
+        <button class="close-btn" on:click={() => (showUsersModal = false)}>✕</button>
       </div>
+
+      {#if loadingUsers}
+        <p class="empty-state">Đang tải danh bạ người dùng...</p>
+      {:else if usersError}
+        <p class="error-msg">{usersError}</p>
+      {:else if $userDirectory.length === 0}
+        <p class="empty-state">Chưa có người dùng nào khác trong hệ thống.</p>
+      {:else}
+        <div class="user-list">
+          {#each $userDirectory as u}
+            <div class="user-item" on:click={() => startChatWithUser(u)}>
+              <img src={u.avatar_url} alt="avatar" class="avatar" />
+              <div>
+                <p class="u-name">{u.display_name || u.username}</p>
+                <p class="u-sub">@{u.username}</p>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -195,7 +214,11 @@
     position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;
   }
   .modal-box { width: 360px; padding: 24px; border-radius: var(--radius-lg); }
-  .modal-box h3 { font-size: 16px; margin-bottom: 16px; }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .modal-top h3 { font-size: 16px; color: #fff; }
+  .close-btn { background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; }
+  .close-btn:hover { color: #fff; }
+  .error-msg { color: #f87171; font-size: 13px; text-align: center; padding: 12px; }
   .user-list { max-height: 300px; overflow-y: auto; }
   .user-item { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; }
   .user-item:hover { background: rgba(255, 255, 255, 0.08); }

@@ -34,8 +34,11 @@ export async function selectConversation(convItem) {
   }
 }
 
-// Thêm tin nhắn mới vào danh sách hiện tại
+// Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện
 export function appendMessage(msg) {
-  currentMessages.update((msgs) => [...msgs, msg]);
-  loadConversations(); // Cập nhật lại snippet tin nhắn cuối
+  const active = get(activeConversation);
+  if (active && active.conversation?.custom_id === msg.conversation_id) {
+    currentMessages.update((msgs) => [...msgs, msg]);
+  }
+  loadConversations(); // Cập nhật lại danh sách hội thoại và tin nhắn cuối
 }

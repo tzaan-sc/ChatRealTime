@@ -43,9 +43,13 @@ func main() {
 	chatHandler := handlers.NewChatHandler(chatService)
 	wsHandler := handlers.NewWSHandler(hub)
 
-	// 7. Khởi tạo Router
+	// 7. Khởi tạo Router với cấu hình CORS đầy đủ
 	r := gin.Default()
-	r.Use(cors.Default())
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+	r.Use(cors.New(corsConfig))
 
 	// Endpoint WebSocket
 	r.GET("/ws", wsHandler.HandleWS)
