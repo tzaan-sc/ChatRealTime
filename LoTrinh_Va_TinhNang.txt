@@ -58,15 +58,15 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
        - [x] Khi mở app hoặc rớt mạng: Bắn sự kiện `user:status` (online/offline) qua Redis cho bạn chat.
        - [x] Hiển thị chấm xanh (Online) hoặc thời gian hoạt động gần nhất (Last seen).
   4.2. Trạng thái đang gõ phím (Typing Indicator)
-       - Sự kiện `typing:start`: Kích hoạt khi người dùng gõ vào ô nhập.
-       - Sự kiện `typing:stop`: Tự kích hoạt sau 2-3 giây không gõ tiếp hoặc khi đã ấn gửi.
-       - Toàn bộ event đi qua Redis Pub/Sub, KHÔNG lưu vào MongoDB để bảo vệ đĩa cứng.
-       - Frontend hiển thị hiệu ứng 3 dấu chấm nhảy động (Typing animation).
+       - [x] Sự kiện `typing:start`: Kích hoạt khi người dùng gõ vào ô nhập.
+       - [x] Sự kiện `typing:stop`: Tự kích hoạt sau 2 giây không gõ tiếp hoặc khi đã ấn gửi.
+       - [x] Toàn bộ event đi qua Redis Pub/Sub, KHÔNG lưu vào MongoDB để bảo vệ đĩa cứng.
+       - [x] Frontend hiển thị hiệu ứng 3 dấu chấm nhảy động (Typing animation).
   4.3. Xác nhận đã đọc tin nhắn (Read Receipts)
-       - Khi người nhận đang mở cửa sổ chat và nhìn thấy tin nhắn -> gửi event `message:read`.
-       - Cập nhật trường `is_read = true` trong MongoDB.
-       - Reset bộ đếm Unread counter về 0.
-       - Gửi thông báo cho người gửi biết tin nhắn đã chuyển từ trạng thái "Đã nhận" sang "Đã xem" (hiển thị avatar nhỏ hoặc 2 tích xanh).
+       - [x] Khi người nhận đang mở cửa sổ chat và nhìn thấy tin nhắn -> gửi event `chat:read`.
+       - [x] Cập nhật trường `is_read = true` trong MongoDB.
+       - [x] Reset bộ đếm Unread counter về 0.
+       - [x] Gửi thông báo cho người gửi biết tin nhắn đã chuyển sang 2 tích xanh (`chat:read_ack`).
 
 [MÔ-ĐUN 5: GIAO DIỆN NGƯỜI DÙNG SVELTE (FRONTEND UI/UX)] [ĐÃ HOÀN THÀNH CƠ BẢN]
   5.1. Bố cục tổng thể (Layout)

@@ -29,10 +29,10 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
   - [x] Tự động gửi `chat:read` khi mở xem cuộc trò chuyện.
 - [x] **5. Nâng cấp `Sidebar.svelte`:**
   - [x] Hiển thị chấm tròn màu xanh lá khi bạn chat đang online.
-- [ ] **6. Nâng cấp `App.svelte`:**
-  - [ ] Tự động gửi `heartbeat` định kỳ mỗi 15 giây.
-  - [ ] Lắng nghe toàn bộ sự kiện nâng cao (`user:status`, `typing:start`, `typing:stop`, `chat:read_ack`).
-  - [ ] Phát âm thanh thông báo khi có tin nhắn đến từ người khác.
+- [x] **6. Nâng cấp `App.svelte`:**
+  - [x] Tự động gửi `heartbeat` định kỳ mỗi 15 giây.
+  - [x] Lắng nghe toàn bộ sự kiện nâng cao (`user:status`, `typing:start`, `typing:stop`, `chat:read_ack`).
+  - [x] Phát âm thanh thông báo khi có tin nhắn đến từ người khác.
 - [ ] **7. Kiểm thử thực tế kịch bản 2 người dùng (Alex & Bob)**.
 
 ---
