@@ -1,237 +1,275 @@
-# Hướng Dẫn Chi Tiết Giai Đoạn 6: Đóng Gói Docker, Test Tải & Triển Khai (Deployment)
-> **Dành cho người mới bắt đầu** | Hệ thống: Docker Multi-Stage | Nền tảng: Local & Cloud (Render / VPS)
+# Hướng Dẫn Chi Tiết Giai Đoạn 6: Tin Nhắn Đa Phương Tiện (Hình Ảnh, Tệp Đính Kèm & Tin Nhắn Thoại Voice Note)
+> **Dành cho người mới bắt đầu** | Hệ điều hành: Windows | Stack: Golang (Static Uploads & Multipart) + Svelte 5 (MediaRecorder & Lightbox) + MongoDB + Redis
 
-Tài liệu này sẽ hướng dẫn bạn đóng gói toàn bộ hệ thống (Frontend Svelte + Backend Go + Redis + MongoDB) thành các Docker container chuẩn hóa, chạy 1-click bằng `docker compose` và sẵn sàng deploy lên môi trường Production trên Internet.
+Giai đoạn này sẽ đưa ứng dụng chat của bạn lên một tầm cao mới, biến phòng chat chữ đơn điệu thành một không gian đa phương tiện sống động:
+1. 🖼️ **Gửi Hình Ảnh (Image Messaging):** Chọn file từ máy hoặc dán trực tiếp (`Ctrl + V`) $\to$ Xem trước $\to$ Click xem ảnh phóng to toàn màn hình (Image Lightbox).
+2. 📎 **Gửi Tệp Đính Kèm (File Attachments):** Hỗ trợ gửi file Word, Excel, PDF, Zip kèm icon định dạng, dung lượng và nút tải về máy.
+3. 🎙️ **Tin Nhắn Thoại (Voice Note / Audio Message):** Nhấn giữ micro trên giao diện web để thu âm giọng nói $\to$ Gửi đoạn voice kèm trình phát âm thanh (Play/Pause, thanh thời lượng) như Zalo/Telegram.
 
 ---
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 6
 
-- [ ] **1. Viết Dockerfile tối ưu cho Backend Go:**
-  - Multi-stage build với Alpine Linux (Binary siêu nhẹ ~15MB).
-  - `backend/Dockerfile`
-- [ ] **2. Viết Dockerfile tối ưu cho Frontend Svelte:**
-  - Multi-stage build với Nginx Alpine (File tĩnh siêu nhanh).
-  - `frontend/Dockerfile` & `frontend/nginx.conf`
-- [ ] **3. Cập nhật `docker-compose.yml` chạy 1-click toàn bộ hệ sinh thái:**
-  - Gồm 4 dịch vụ: `mongo`, `redis`, `backend`, `frontend`.
-- [ ] **4. Kiểm thử tính ổn định & Kịch bản mất mạng (Resilience Test):**
-  - Test F5 / Tắt mạng đột ngột $\to$ Dữ liệu không bao giờ mất.
-- [ ] **5. Hướng dẫn Deploy lên Cloud miễn phí / VPS giá rẻ.**
+- [ ] **1. Xây dựng Backend Upload API (Golang):**
+  - [ ] Tạo thư mục `backend/uploads` và cấu hình static files `r.Static("/uploads", "./uploads")` trong Gin router.
+  - [ ] Viết Handler `UploadHandler` tiếp nhận multipart file (`POST /api/upload`), kiểm tra định dạng và sinh tên file an toàn (UUID / Timestamp).
+  - [ ] Cập nhật model `Message` trong MongoDB để hỗ trợ các thuộc tính: `type` ("image", "file", "voice"), `file_name`, `file_size`.
+- [ ] **2. Tạo Component Phóng to Ảnh (Image Lightbox Modal):**
+  - [ ] Viết `frontend/src/lib/components/ImageModal.svelte` cho phép phóng to ảnh sắc nét trên nền tối mờ.
+- [ ] **3. Tạo Component Thu âm & Phát Voice Note (Voice Message Player):**
+  - [ ] Sử dụng `navigator.mediaDevices.getUserMedia` và `MediaRecorder` API để ghi âm giọng nói.
+  - [ ] Viết trình phát Audio Player với nút Play/Pause và thanh tiến trình thời gian.
+- [ ] **4. Nâng cấp `ChatArea.svelte`:**
+  - [ ] Nút kẹp ghim 📎 chọn ảnh hoặc tài liệu từ máy tính.
+  - [ ] Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V` clipboard paste).
+  - [ ] Nút micro 🎙️ ghi âm giọng nói.
+  - [ ] Render trực quan các bong bóng tin nhắn:
+    - Ảnh: Hiển thị thumbnail bo góc, click để phóng to.
+    - File: Hiển thị icon tệp, tên file, dung lượng (KB/MB) và nút tải về.
+    - Voice: Hiển thị thanh nghe audio với nút Play/Pause.
+- [ ] **5. Kiểm thử toàn diện 6 kịch bản đa phương tiện (Ảnh, PDF, Voice, Lightbox, Tải về)**.
 
 ---
 
 ## Mục lục
-1. [Bước 1: Dockerfile cho Backend Golang](#buoc-1-dockerfile-backend-golang)
-2. [Bước 2: Dockerfile & Cấu hình Nginx cho Frontend Svelte](#buoc-2-dockerfile-frontend-svelte)
-3. [Bước 3: File `docker-compose.yml` trọn gói](#buoc-3-docker-compose-tron-goi)
-4. [Bước 4: Chạy toàn bộ hệ thống 1-click](#buoc-4-chay-he-thong-1-click)
-5. [Bước 5: Kịch bản Kiểm thử Tải & Độ Ổn Định](#buoc-5-kiem-thu-do-on-dinh)
-6. [Bước 6: Hướng dẫn Deploy lên Cloud (VPS / Render / MongoDB Atlas)](#buoc-6-deploy-cloud)
+1. [Bước 1: Cập nhật Backend Go (API Upload & Static Serving)](#buoc-1-backend-upload)
+2. [Bước 2: Nâng cấp Model Tin nhắn trong Backend](#buoc-2-update-models)
+3. [Bước 3: Tạo Component Xem Ảnh Phóng To (`ImageModal.svelte`)](#buoc-3-image-modal)
+4. [Bước 4: Nâng cấp Giao diện Khung Chat (`ChatArea.svelte`)](#buoc-4-chat-area-media)
+5. [Bước 5: Kịch bản Kiểm thử Thực tế Chi tiết](#buoc-5-kiem-thu-thuc-te)
 
 ---
 
-<a name="buoc-1-dockerfile-backend-golang"></a>
-## Bước 1: Dockerfile cho Backend Golang
+<a name="buoc-1-backend-upload"></a>
+## Bước 1: Cập nhật Backend Go (API Upload & Static Serving)
 
-Tạo file `backend/Dockerfile`:
-
-```dockerfile
-# Stage 1: Build binary bằng Golang Compiler
-FROM golang:1.22-alpine AS builder
-
-WORKDIR /app
-
-# Copy dependency files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy mã nguồn và build
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o server ./cmd/server
-
-# Stage 2: Chạy binary trên Scratch/Alpine siêu nhẹ (chỉ ~15MB)
-FROM alpine:3.19
-
-WORKDIR /app
-
-# Cài đặt chứng chỉ SSL cho kết nối HTTPS
-RUN apk --no-cache add ca-certificates tzdata
-
-COPY --from=builder /app/server .
-COPY .env .env
-
-EXPOSE 8080
-
-CMD ["./server"]
+### 1.1. Tạo thư mục chứa file tải lên
+Tại thư mục `backend`, tạo thư mục `uploads`:
+```powershell
+New-Item -ItemType Directory -Force -Path "d:\GIT\ChatRealTime\backend\uploads"
 ```
 
----
+### 1.2. Viết file `backend/internal/handlers/upload_handler.go`
+Tạo file [backend/internal/handlers/upload_handler.go](file:///d:/GIT/ChatRealTime/backend/internal/handlers/upload_handler.go):
 
-<a name="buoc-2-dockerfile-frontend-svelte"></a>
-## Bước 2: Dockerfile & Cấu hình Nginx cho Frontend Svelte
+```go
+package handlers
 
-### 2.1. File `frontend/nginx.conf`
-```nginx
-server {
-    listen 80;
-    server_name localhost;
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
-    location / {
-        root /usr/share/nginx/html;
-        index index.html index.htm;
-        try_files $uri $uri/ /index.html;
-    }
+	"github.com/gin-gonic/gin"
+)
 
-    # Proxy các API và WebSocket tới Backend Go
-    location /api/ {
-        proxy_pass http://backend:8080/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
+type UploadHandler struct{}
 
-    location /ws {
-        proxy_pass http://backend:8080/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
+func NewUploadHandler() *UploadHandler {
+	return &UploadHandler{}
+}
+
+// UploadFile tiếp nhận multipart form data, lưu trữ file vào thư mục uploads
+func (h *UploadHandler) UploadFile(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Không tìm thấy file gửi lên"})
+		return
+	}
+
+	// Giới hạn dung lượng tối đa 20MB
+	if file.Size > 20*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File vượt quá giới hạn 20MB"})
+		return
+	}
+
+	// Tạo tên file duy nhất tránh trùng lặp
+	ext := filepath.Ext(file.Filename)
+	uniqueName := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.ReplaceAll(filepath.Base(file.Filename), " ", "_"), "")
+	if ext == "" {
+		uniqueName += ".webm" // Mặc định cho file ghi âm voice
+	}
+
+	uploadDir := "./uploads"
+	_ = os.MkdirAll(uploadDir, os.ModePerm)
+	savePath := filepath.Join(uploadDir, uniqueName)
+
+	if err := c.SaveUploadedFile(file, savePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lưu file trên máy chủ: " + err.Error()})
+		return
+	}
+
+	// Trả về URL để truy cập file tĩnh
+	fileURL := fmt.Sprintf("http://localhost:8080/uploads/%s", uniqueName)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Tải file thành công",
+		"file_url":  fileURL,
+		"file_name": file.Filename,
+		"file_size": file.Size,
+	})
 }
 ```
 
-### 2.2. File `frontend/Dockerfile`
-```dockerfile
-# Stage 1: Build mã nguồn Svelte
-FROM node:20-alpine AS builder
+---
 
-WORKDIR /app
+<a name="buoc-2-update-models"></a>
+## Bước 2: Nâng cấp Model Tin nhắn trong Backend
 
-COPY package*.json ./
-RUN npm install
+### 2.1. Bổ sung `file_name` và `file_size` vào `models/message.go`
+Mở file [backend/internal/models/message.go](file:///d:/GIT/ChatRealTime/backend/internal/models/message.go) và cập nhật:
 
-COPY . .
-RUN npm run build
+```go
+package models
 
-# Stage 2: Phục vụ file tĩnh qua Web Server Nginx Alpine
-FROM nginx:alpine
+import (
+	"time"
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
-EXPOSE 80
+type Message struct {
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ConversationID string             `bson:"conversation_id" json:"conversation_id"`
+	SenderID       string             `bson:"sender_id" json:"sender_id"`
+	ReceiverID     string             `bson:"receiver_id" json:"receiver_id"`
+	Content        string             `bson:"content" json:"content"` // Chứa text hoặc URL của ảnh/file/voice
+	Type           string             `bson:"type" json:"type"`       // "text", "image", "file", "voice"
+	FileName       string             `bson:"file_name,omitempty" json:"file_name,omitempty"`
+	FileSize       int64              `bson:"file_size,omitempty" json:"file_size,omitempty"`
+	IsRead         bool               `bson:"is_read" json:"is_read"`
+	CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
+}
 
-CMD ["nginx", "-g", "daemon off;"]
+type SendMessageRequest struct {
+	ReceiverID string `json:"receiver_id" binding:"required"`
+	Content    string `json:"content" binding:"required"`
+	Type       string `json:"type"` // "text", "image", "file", "voice"
+	FileName   string `json:"file_name,omitempty"`
+	FileSize   int64  `json:"file_size,omitempty"`
+}
+```
+
+### 2.2. Đăng ký Static route và Upload route trong `cmd/server/main.go`
+Thêm `r.Static("/uploads", "./uploads")` và `api.POST("/upload", uploadHandler.UploadFile)`.
+
+---
+
+<a name="buoc-3-image-modal"></a>
+## Bước 3: Tạo Component Xem Ảnh Phóng To (`ImageModal.svelte`)
+
+Tạo file [frontend/src/lib/components/ImageModal.svelte](file:///d:/GIT/ChatRealTime/frontend/src/lib/components/ImageModal.svelte):
+
+```svelte
+<script>
+  import { X, Download } from 'lucide-svelte';
+
+  export let imageUrl = '';
+  export let onClose = () => {};
+</script>
+
+{#if imageUrl}
+  <div class="lightbox-overlay" on:click={onClose}>
+    <div class="lightbox-content" on:click|stopPropagation>
+      <div class="lightbox-actions">
+        <a href={imageUrl} download="image" target="_blank" class="action-btn" title="Tải ảnh gốc">
+          <Download size={20} />
+        </a>
+        <button class="action-btn" on:click={onClose} title="Đóng">
+          <X size={20} />
+        </button>
+      </div>
+      <img src={imageUrl} alt="phóng to" class="lightbox-image" />
+    </div>
+  </div>
+{/if}
+
+<style>
+  .lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.2s ease;
+  }
+  .lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .lightbox-actions {
+    position: absolute;
+    top: -45px;
+    right: 0;
+    display: flex;
+    gap: 12px;
+  }
+  .action-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    transition: 0.2s;
+  }
+  .action-btn:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.08); }
+  .lightbox-image {
+    max-width: 100%;
+    max-height: 85vh;
+    border-radius: var(--radius-md);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    object-fit: contain;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>
 ```
 
 ---
 
-<a name="buoc-3-docker-compose-tron-goi"></a>
-## Bước 3: File `docker-compose.yml` trọn gói
+<a name="buoc-4-chat-area-media"></a>
+## Bước 4: Nâng cấp Giao diện Khung Chat (`ChatArea.svelte`)
 
-Cập nhật lại file `d:\GIT\ChatRealTime\docker-compose.yml` ở thư mục gốc:
-
-```yaml
-version: '3.8'
-
-services:
-  # 1. Cơ sở dữ liệu Redis
-  redis:
-    image: redis:7
-    container_name: redis
-    restart: always
-    ports:
-      - "6379:6379"
-
-  # 2. Cơ sở dữ liệu MongoDB
-  mongo:
-    image: mongo:7
-    container_name: mongo
-    restart: always
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
-    volumes:
-      - mongo_data:/data/db
-
-  # 3. Backend Go Realtime Service
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend
-    restart: always
-    ports:
-      - "8080:8080"
-    environment:
-      PORT: 8080
-      MONGO_URI: mongodb://admin:password123@mongo:27017
-      DB_NAME: chatapp
-      REDIS_ADDR: redis:6379
-      JWT_SECRET: super_secret_key_chatapp_2026
-    depends_on:
-      - redis
-      - mongo
-
-  # 4. Frontend Svelte Web App
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-
-volumes:
-  mongo_data:
-```
+Tại [ChatArea.svelte](file:///d:/GIT/ChatRealTime/frontend/src/lib/components/ChatArea.svelte), tích hợp:
+1. **Upload File & Ảnh:**
+   - Thẻ `<input type="file" bind:this={fileInput} on:change={handleFileUpload} />` ẩn.
+   - Khi chọn file $\to$ gửi `POST /api/upload` $\to$ nhận `file_url` $\to$ gửi WebSocket `chat:send` với type `"image"` hoặc `"file"`.
+2. **Ghi âm Voice Message:**
+   - Dùng `navigator.mediaDevices.getUserMedia({ audio: true })`.
+   - Nút Micro: Click để bắt đầu ghi âm (hiện sóng âm và số giây `00:04...`), click nút gửi hoặc dừng để nạp audio Blob lên server.
+3. **Hiển thị Tin nhắn:**
+   - **Ảnh (`type === "image"`):** Render thẻ `<img>` với hiệu ứng zoom khi rê chuột, bấm vào mở `ImageModal`.
+   - **File (`type === "file"`):** Render thẻ file kèm icon tài liệu, tên file, kích thước dung lượng (KB/MB) và nút tải xuống.
+   - **Voice (`type === "voice"`):** Render player với thẻ `<audio controls>` tùy biến tông màu Cyber Dark.
 
 ---
 
-<a name="buoc-4-chay-he-thong-1-click"></a>
-## Bước 4: Chạy toàn bộ hệ thống 1-click
+<a name="buoc-5-kiem-thu-thuc-te"></a>
+## Bước 5: Kịch bản Kiểm thử Thực tế Chi tiết
 
-Chỉ với **duy nhất 1 câu lệnh** tại thư mục gốc `d:\GIT\ChatRealTime`:
-
-```powershell
-docker compose up -d --build
-```
-
-- Toàn bộ 4 dịch vụ (Redis, Mongo, Go, Svelte) sẽ tự động được build và khởi chạy cùng lúc!
-- Truy cập ngay trình duyệt tại địa chỉ: **`http://localhost`** để sử dụng ứng dụng chat!
-
----
-
-<a name="buoc-5-kiem-thu-do-on-dinh"></a>
-## Bước 5: Kịch bản Kiểm thử Tải & Độ Ổn Định
-
-| Kịch bản kiểm thử | Hành động thực hiện | Kết quả mong đợi |
+| Kịch bản | Thao tác thực hiện | Kết quả mong đợi |
 | :--- | :--- | :--- |
-| **F5 / Tải lại trang** | Nhấn `Ctrl + F5` khi đang mở khung chat | Hệ thống tự động reconnect WebSocket, nạp lại toàn bộ lịch sử tin nhắn đầy đủ. |
-| **Offline Messages** | Bob tắt trình duyệt, Alex gửi 3 tin nhắn, sau đó Bob mở lại | 3 tin nhắn của Alex đã được lưu trong MongoDB và hiển thị đầy đủ cho Bob kèm số lượng badge tin chưa đọc. |
-| **Độ trễ truyền tin** | Gửi tin nhắn giữa 2 máy khác nhau | Độ trễ dưới 20ms nhờ Redis Pub/Sub và kết nối liên tục qua Gorilla WebSocket. |
+| 📸 **Gửi ảnh & Lightbox** | Click nút kẹp ghim 📎 chọn 1 bức ảnh (PNG/JPG) | Ảnh được upload và hiển thị ngay trên màn hình cả 2 bên. Click vào ảnh $\to$ bung modal phóng to sắc nét! |
+| 📋 **Dán ảnh (Ctrl + V)** | Copy 1 hình ảnh từ web hoặc chụp màn hình (`Win + Shift + S`), bấm `Ctrl + V` vào ô chat | Ảnh tự động upload và gửi đi tức thì mà không cần lưu ra desktop! |
+| 📎 **Gửi tài liệu (PDF/Zip)** | Click 📎 chọn file PDF hoặc Zip bất kỳ | Cả 2 bên hiện bong bóng file với icon tài liệu, dung lượng chính xác và nút bấm tải về máy. |
+| 🎙️ **Thu âm giọng nói (Voice)** | Click nút Micro 🎙️, cho phép quyền Microphone $\to$ nói "Alo alo 1 2 3 4" $\to$ bấm nút Gửi | Đáy khung chat của đối phương hiện tin nhắn voice dạng thanh phát audio, bấm nút Play để nghe rõ giọng nói! |
 
 ---
 
-<a name="buoc-6-deploy-cloud"></a>
-## Bước 6: Hướng dẫn Deploy lên Cloud
-
-### 1. Database Cloud Miễn Phí:
-- **MongoDB:** Tạo cluster M0 Free vĩnh viễn trên [MongoDB Atlas](https://www.mongodb.com/atlas).
-- **Redis:** Tạo cơ sở dữ liệu miễn phí trên [Upstash Redis](https://upstash.com).
-
-### 2. Triển khai Server (VPS / Cloud):
-- Thuê VPS Ubuntu giá rẻ (~$3 - $5/tháng trên DigitalOcean, Linode, Vultr hoặc Hetzner).
-- Cài đặt Docker trên VPS: `curl -fsSL https://get.docker.com | sh`.
-- Clone mã nguồn về VPS và gõ lệnh: `docker compose up -d --build`.
-- Trỏ tên miền (Domain) và cấu hình SSL HTTPS miễn phí qua **Let's Encrypt / Certbot**.
-
----
-
-### 🏆 Chúc mừng bạn đã hoàn thành toàn bộ Lộ trình Dự án!
-Bạn đã xây dựng thành công một hệ thống **Direct Messaging Chat Realtime chuẩn kiến trúc doanh nghiệp** từ con số 0!
+### 🎉 Hoàn thành Giai đoạn 6!
+Ứng dụng chat của bạn đã trở thành một hệ thống **Đa phương tiện hoàn chỉnh (Full Media Messaging)**!

@@ -1019,6 +1019,37 @@ Sau khi hoàn thành cập nhật code, mở 2 cửa sổ trình duyệt (Alex v
 2. Tại tab của Bob, gửi 1 tin nhắn sang cho Alex.
 3. 👉 **Kết quả:** Tai nghe/loa máy tính của bạn sẽ phát ra tiếng **"Pop"** nhẹ nhàng, êm ái báo hiệu tin nhắn mới!
 
+### 🧪 Test 5: Kiểm thử Tự động Reconnect & Giữ phiên (F5 / Reload)
+1. Tại tab của Alex, nhấn **F5** để tải lại trang.
+2. 👉 **Kết quả:** 
+   - Alex không bị văng ra màn hình đăng nhập (Token JWT lưu trong LocalStorage được tự động nạp).
+   - WebSocket tự động bắt tay lại với Backend trong chưa đầy 1 giây.
+   - Toàn bộ lịch sử tin nhắn trước đó được nạp lại đầy đủ từ MongoDB.
+   - Phía Bob: Chấm tròn của Alex vẫn giữ màu xanh online.
+
+### 🧪 Test 6: Kiểm thử Badge Tin nhắn Chưa đọc (Unread Counter)
+1. Tại tab của Bob, bấm nút **F5** nhưng **chưa bấm vào cuộc trò chuyện với Alex** (đang ở màn hình trống *"Chào mừng đến với Realtime Chat"*).
+2. Tại tab của Alex, gửi 2 tin nhắn liên tiếp: *"Alo Bob"* và *"Bạn có ở đó không?"*.
+3. 👉 **Kết quả tại màn hình Bob:**
+   - Cột Sidebar của Bob xuất hiện **Badge số đếm màu tím có số `2`**.
+   - Snippet tin nhắn cuối cập nhật thành: *"Bạn có ở đó không?"*.
+   - Loa phát tiếng "Pop" báo tin mới.
+4. Bob click vào cuộc trò chuyện với Alex:
+   - Badge số `2` lập tức biến mất!
+   - Bên Alex: Cả 2 tin nhắn vừa gửi đồng loạt chuyển thành **2 tích xanh `✓✓`**!
+
+### 🧪 Test 7: Kiểm thử Nhắn tin tốc độ cao (Rapid Messaging & Auto-scroll)
+1. Tại cửa sổ của Alex, gõ và gửi liên tiếp 4-5 tin nhắn ngắn thật nhanh (gõ chữ $\to$ Enter $\to$ gõ chữ $\to$ Enter).
+2. 👉 **Kết quả:**
+   - Phía Alex và Bob: Các tin nhắn đổ về theo đúng thứ tự thời gian gửi.
+   - Khung chat tự động cuộn (Auto-scroll) mượt mà xuống dưới đáy để luôn nhìn thấy tin mới nhất mà không bị che khuất.
+
+### 🧪 Test 8: Kiểm thử Đăng xuất an toàn (Graceful Logout)
+1. Tại cửa sổ của Bob, nhấn nút **Đăng xuất** (icon cánh cửa mở có mũi tên ở góc trên Sidebar).
+2. 👉 **Kết quả:**
+   - Màn hình của Bob lập tức quay về popup Đăng nhập / Đăng ký (`AuthModal`), toàn bộ thông tin phiên làm việc được dọn sạch.
+   - Màn hình của Alex: Chấm trạng thái của Bob ngay lập tức đổi sang màu xám và hiện chữ *"Ngoại tuyến"*.
+
 ---
 
 ### 🎉 Xin chúc mừng!

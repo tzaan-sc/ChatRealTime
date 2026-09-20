@@ -1,161 +1,139 @@
 ================================================================================
-          LỘ TRÌNH PHÁT TRIỂN & BẢN ĐỒ TÍNH NĂNG HỆ THỐNG CHAT REALTIME 1-1
-                Stack: Svelte + Golang + Redis + MongoDB
+          LỘ TRÌNH PHÁT TRIỂN & BẢN ĐỒ TÍNH NĂNG HỆ THỐNG CHAT REALTIME
+                Stack: Svelte 5 + Golang + Redis + MongoDB + WebRTC
 ================================================================================
 
 I. TỔNG QUAN HỆ THỐNG
 --------------------------------------------------------------------------------
-Hệ thống nhắn tin cá nhân trực tiếp (Direct Messaging - 1-1) tương tự Messenger /
-Telegram. Xây dựng theo tiêu chuẩn: Gọn nhẹ, phản xạ thời gian thực mượt mà,
-xử lý đồng thời tốt và chia tách rõ ràng trách nhiệm giữa DB lưu trữ và RAM cache.
+Hệ thống nhắn tin thời gian thực đa phương tiện (Direct 1-1, Group Chat, Audio/Video Call)
+tương tự Messenger, Telegram và Discord.
+Được xây dựng theo tiêu chuẩn: Gọn nhẹ, phản xạ thời gian thực mượt mà, xử lý đồng thời cực cao,
+chia tách rõ ràng giữa In-Memory RAM Cache (Redis) và Cơ sở dữ liệu lưu trữ bền vững (MongoDB).
 
 
-II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
+II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
 --------------------------------------------------------------------------------
 
 [MÔ-ĐUN 1: XÁC THỰC & QUẢN LÝ NGƯỜI DÙNG (AUTHENTICATION & USER PROFILE)]
-  1.1. Đăng ký & Đăng nhập [ĐÃ HOÀN THÀNH]
-       - [x] Đăng ký tài khoản (Username, Email, Mật khẩu băm bằng Bcrypt).
-       - [x] Đăng nhập xác thực, cấp phát JSON Web Token (JWT) Access Token.
-       - [x] Middleware bảo vệ các REST endpoint và xác thực handshake WebSocket.
-  1.2. Hồ sơ cá nhân (User Profile)
-       - [x] Lấy thông tin cá nhân hiện tại (`GET /api/auth/me`).
-       - [ ] Cập nhật thông tin: Tên hiển thị (Display name), Avatar, Bio ngắn.
-       - [x] Lấy danh sách bạn bè / danh bạ người dùng để bắt đầu cuộc trò chuyện.
-       - [x] Tìm kiếm người dùng khác theo username hoặc email.
+  - [x] Đăng ký tài khoản (Username, Email, Mật khẩu băm Bcrypt an toàn).
+  - [x] Đăng nhập xác thực, cấp phát JSON Web Token (JWT) Access Token.
+  - [x] Middleware bảo vệ REST endpoint và xác thực handshake WebSocket.
+  - [x] Lấy danh sách bạn bè / người dùng trong hệ thống để nhắn tin.
+  - [x] Tìm kiếm người dùng theo username/email.
 
-[MÔ-ĐUN 2: QUẢN LÝ HỘI THOẠI (CONVERSATIONS)] [ĐÃ HOÀN THÀNH]
-  2.1. Khởi tạo & Định danh hội thoại
-       - [x] Tự động tạo conversation giữa 2 người dùng khi gửi tin nhắn đầu tiên.
-       - [x] Quy ước mã hội thoại chuẩn hóa (vd: sort 2 User ID theo alphabet để luôn duy nhất).
-  2.2. Danh sách cuộc hội thoại (Inbox / Recent Chats)
-       - [x] Lấy danh sách các cuộc trò chuyện gần nhất của người dùng.
-       - [x] Hiển thị tin nhắn cuối cùng (Last message snippet) và thời gian gửi.
-       - [x] Hiển thị số lượng tin nhắn chưa đọc (Unread message counter).
-       - [x] Sắp xếp hội thoại có tin nhắn mới nhất lên đầu danh sách.
+[MÔ-ĐUN 2: NHẮN TIN CỐT LÕI 1-1 (CORE 1-1 REALTIME MESSAGING)]
+  - [x] WebSocket Hub với kiến trúc Goroutines kép (ReadPump & WritePump).
+  - [x] Redis Pub/Sub đa luồng cho từng kênh người dùng `user:{receiverId}`.
+  - [x] Lưu trữ tin nhắn vĩnh viễn vào MongoDB (Collection: messages) kèm chỉ mục Index tối ưu.
+  - [x] Lấy lịch sử tin nhắn của cuộc trò chuyện.
+  - [x] ACK xác nhận tin nhắn gửi thành công.
 
-[MÔ-ĐUN 3: CỐT LÕI NHẮN TIN THỜI GIAN THỰC (CORE REALTIME MESSAGING)] [ĐÃ HOÀN THÀNH]
-  3.1. Kết nối WebSocket (Go WebSocket Hub)
-       - [x] Handshake WebSocket an toàn qua JWT token từ client Svelte.
-       - [x] Quản lý Client Connection Map: Ánh xạ UserID -> WebSocket Connection.
-       - [x] Tách biệt luồng Đọc (ReadPump) và luồng Ghi (WritePump) bằng Goroutines.
-  3.2. Chu trình gửi - nhận tin nhắn
-       - [x] Client A gửi JSON tin nhắn qua WebSocket.
-       - [x] Backend Go tiếp nhận, validate nội dung (không rỗng, giới hạn độ dài).
-       - [x] Gán Message ID (Snowflake hoặc MongoDB ObjectId) và Server Timestamp.
-       - [x] Lưu trữ tin nhắn vào MongoDB (Collection: messages).
-       - [x] Publish tin nhắn vào Redis Pub/Sub channel của người nhận.
-       - [x] Đẩy tin nhắn xuống Client B nếu đang mở socket.
-       - [x] Gửi lại gói tin xác nhận (ACK - Sent status) cho Client A.
-  3.3. Lịch sử tin nhắn (Message History & Pagination)
-       - [x] Tải 30-50 tin nhắn gần nhất khi vừa mở khung chat.
-       - [ ] Cuộn ngược lên trên (Scroll to top) để tải trang cũ hơn (Cursor-based pagination dựa vào created_at hoặc _id).
+[MÔ-ĐUN 3: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS)]
+  - [x] Heartbeat Ping/Pong định kỳ 15s giữa Client và Server.
+  - [x] Quản lý trạng thái Online/Offline bằng Redis TTL (30s) và chấm xanh avatar.
+  - [x] Typing Indicator: Báo "đang gõ tin nhắn..." kèm hiệu ứng 3 chấm nhảy động mượt mà.
+  - [x] Đã đọc tin nhắn (Read Receipts): Tích xám 1 tích (Đã gửi) -> 2 tích xanh dương (Đã đọc).
+  - [x] Âm thanh thông báo Pop nhẹ nhàng chuẩn Web Audio API khi có tin nhắn tới.
 
-[MÔ-ĐUN 4: TÍNH NĂNG PHỤ TRỢ THỜI GIAN THỰC (REALTIME AUXILIARY FEATURES)]
-  4.1. Trạng thái Online / Offline (Presence)
-       - [x] Client gửi định kỳ tín hiệu Heartbeat (Ping/Pong mỗi 15-20 giây).
-       - [x] Redis lưu key: `user:online:{userId}` với thời gian sống (TTL = 30-40 giây).
-       - [x] Khi mở app hoặc rớt mạng: Bắn sự kiện `user:status` (online/offline) qua Redis cho bạn chat.
-       - [x] Hiển thị chấm xanh (Online) hoặc thời gian hoạt động gần nhất (Last seen).
-  4.2. Trạng thái đang gõ phím (Typing Indicator)
-       - [x] Sự kiện `typing:start`: Kích hoạt khi người dùng gõ vào ô nhập.
-       - [x] Sự kiện `typing:stop`: Tự kích hoạt sau 2 giây không gõ tiếp hoặc khi đã ấn gửi.
-       - [x] Toàn bộ event đi qua Redis Pub/Sub, KHÔNG lưu vào MongoDB để bảo vệ đĩa cứng.
-       - [x] Frontend hiển thị hiệu ứng 3 dấu chấm nhảy động (Typing animation).
-  4.3. Xác nhận đã đọc tin nhắn (Read Receipts)
-       - [x] Khi người nhận đang mở cửa sổ chat và nhìn thấy tin nhắn -> gửi event `chat:read`.
-       - [x] Cập nhật trường `is_read = true` trong MongoDB.
-       - [x] Reset bộ đếm Unread counter về 0.
-       - [x] Gửi thông báo cho người gửi biết tin nhắn đã chuyển sang 2 tích xanh (`chat:read_ack`).
+[MÔ-ĐUN 4: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES)]
+  - [ ] Upload hình ảnh (JPG, PNG, GIF), hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (Ctrl + V).
+  - [ ] Image Lightbox Modal: Click vào ảnh trong tin nhắn để phóng to toàn màn hình sắc nét.
+  - [ ] Gửi tệp đính kèm tài liệu (Word, Excel, PDF, Zip...) kèm kích thước dung lượng và nút tải về.
+  - [ ] Tin nhắn thoại (Voice Note): Thu âm trực tiếp bằng Micro trên trình duyệt và phát audio player.
 
-[MÔ-ĐUN 5: GIAO DIỆN NGƯỜI DÙNG SVELTE (FRONTEND UI/UX)] [ĐÃ HOÀN THÀNH CƠ BẢN]
-  5.1. Bố cục tổng thể (Layout)
-       - [x] Thiết kế chia 2 cột trên Desktop: Cột trái danh sách chat, cột phải khung chat.
-       - [x] Tông màu hiện đại Cyber Dark, Glassmorphism, Dark mode.
-  5.2. Khung chat chính (Chat Area)
-       - [x] Tự động cuộn xuống cuối (Auto scroll to bottom) khi có tin nhắn mới đổ về.
-       - [ ] Giữ nguyên vị trí scroll khi đang xem tin nhắn cũ hoặc cuộn lên tải thêm lịch sử.
-       - [x] Input soạn thảo thông minh: hỗ trợ phím Enter để gửi, Shift+Enter xuống dòng.
-       - [x] Phân biệt rõ ràng bong bóng chat của mình (bên phải) và của đối phương (bên trái).
+[MÔ-ĐUN 5: TƯƠNG TÁC TIN NHẮN (INTERACTIONS & ACTIONS)]
+  - [ ] Quick Reaction Bar: Thả cảm xúc emoji nhanh (❤️, 😂, 👍, 😢, 🔥, 🚀).
+  - [ ] Trả lời / Trích dẫn (Reply / Quote): Trích dẫn lại tin nhắn cũ kèm cuộn mượt tới vị trí tin gốc.
+  - [ ] Thu hồi tin nhắn (Unsend / Delete for Everyone): Thay thế tin nhắn bằng thông báo đã thu hồi.
+  - [ ] Chỉnh sửa tin nhắn (Edit Message): Cho phép sửa chính tả kèm nhãn `(đã sửa)`.
 
-[MÔ-ĐUN 6: MỞ RỘNG & TỐI ƯU (ENHANCEMENT - TÙY CHỌN BỔ SUNG)]
-  6.1. Gửi tệp đính kèm & hình ảnh
-       - REST API tải ảnh/file lên server hoặc lưu tạm trong thư mục upload.
-       - Hiển thị preview ảnh trực tiếp trong bong bóng chat.
-  6.2. Thu hồi / Xóa tin nhắn
-       - Cho phép người gửi thu hồi tin nhắn trong vòng 15-30 phút.
-       - Broadcast event `message:delete` để UI cả hai bên cập nhật lại tức thì.
+[MÔ-ĐUN 6: TRÒ CHUYỆN NHÓM (GROUP CHAT)]
+  - [ ] Tạo phòng chat nhóm, mời bạn bè vào nhóm.
+  - [ ] Phân quyền Admin / Member: Đổi tên nhóm, thêm thành viên, xóa thành viên hoặc rời nhóm.
+  - [ ] Tối ưu hóa kênh Redis Pub/Sub cho nhóm: `group:chat:{groupId}` broadcast 1 lần tới tất cả thành viên.
+  - [ ] Bong bóng chat nhóm hiển thị tên người gửi và avatar riêng biệt.
+
+[MÔ-ĐUN 7: CUỘC GỌI THOẠI & VIDEO CALL REALTIME (WEBRTC)]
+  - [ ] Trao đổi tín hiệu báo hiệu (Signaling: Offer, Answer, ICE Candidates) qua WebSocket Hub hiện có.
+  - [ ] Kết nối P2P âm thanh và hình ảnh trực tiếp không tốn băng thông server qua Google STUN.
+  - [ ] Giao diện cuộc gọi sang trọng: Màn hình chuông reo, khung Video Call Picture-in-Picture, Mute mic, Tắt camera.
+
+[MÔ-ĐUN 8: ĐÓNG GÓI, TEST TẢI & DEPLOYMENT]
+  - [ ] Multi-stage Dockerfile cho Backend Go (Binary siêu nhẹ ~15MB).
+  - [ ] Multi-stage Dockerfile cho Frontend Svelte qua máy chủ web Nginx tĩnh siêu tốc.
+  - [ ] File `docker-compose.yml` chạy trọn gói 4 dịch vụ (Frontend, Backend, Redis, MongoDB).
+  - [ ] Kịch bản test khả năng phục hồi dữ liệu khi mất mạng đột ngột hoặc tải nặng.
 
 
-III. LỘ TRÌNH THỰC HIỆN CHI TIẾT THEO TỪNG GIAI ĐOẠN (ROADMAP)
+III. LỘ TRÌNH 10 GIAI ĐOẠN CHI TIẾT (10-STAGE ROADMAP)
 --------------------------------------------------------------------------------
 
 GIAI ĐOẠN 1: KHỞI TẠO HẠ TẦNG & MÔI TRƯỜNG DỮ LIỆU [ĐÃ HOÀN THÀNH]
-[x] 1.1. Cài đặt Docker Desktop và kiểm tra docker-compose.
-[x] 1.2. Khởi chạy cụm Redis 7 (cổng 6379) và MongoDB 7 (cổng 27017).
-[x] 1.3. Kết nối MongoDB Compass / GUI kiểm tra kết nối và tạo cơ sở dữ liệu `chatapp`.
-[x] 1.4. Thiết lập Index bắt buộc trong MongoDB cho collection `messages`:
-         `db.messages.createIndex({ conversation_id: 1, created_at: -1 })`
+-> File tài liệu: stage1.md
+[x] 1.1. Cài đặt Docker & docker-compose.
+[x] 1.2. Khởi chạy Redis 7 (cổng 6379) và MongoDB 7 (cổng 27017).
+[x] 1.3. Tạo cơ sở dữ liệu `chatapp` và thiết lập Index tối ưu cho tin nhắn.
 
-GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH) [ĐÃ HOÀN THÀNH]
-[x] 2.1. Khởi tạo Go module (`go mod init chatrealtime-backend`).
-[x] 2.2. Thiết lập cấu trúc thư mục chuẩn (Clean Architecture):
-         ├── cmd/server/main.go
-         ├── internal/
-         │   ├── config/
-         │   ├── database/
-         │   ├── handlers/     (REST API & WebSocket handler)
-         │   ├── middleware/
-         │   ├── models/       (User, Conversation, Message)
-         │   ├── repository/   (Tương tác MongoDB)
-         │   ├── service/      (Logic nghiệp vụ)
-         │   └── websocket/    (Client, Hub, Pool)
-         └── pkg/utils/        (JWT, Hash password)
-[x] 2.3. Cài đặt các thư viện Go cần thiết:
-         - Gin Web Framework (`github.com/gin-gonic/gin`)
-         - Gin CORS (`github.com/gin-contrib/cors`)
-         - Mongo Driver (`go.mongodb.org/mongo-driver/mongo`)
-         - Redis Client (`github.com/redis/go-redis/v9`)
-         - JWT (`github.com/golang-jwt/jwt/v5`)
-         - Bcrypt (`golang.org/x/crypto/bcrypt`)
-         - GoDotEnv (`github.com/joho/godotenv`)
-[x] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token và API lấy profile `/api/auth/me`.
+GIAI ĐOẠN 2: BACKEND GOLANG & XÁC THỰC AUTH JWT [ĐÃ HOÀN THÀNH]
+-> File tài liệu: stage2.md
+[x] 2.1. Cấu trúc Clean Architecture chuẩn Go (cmd, internal, pkg).
+[x] 2.2. Viết API Đăng ký, Đăng nhập, băm mật khẩu Bcrypt, cấp phát JWT Token.
+[x] 2.3. Cấu hình Gin CORS Middleware cho phép Authorization Header.
 
-GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI [ĐÃ HOÀN THÀNH]
-[x] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
-[x] 3.2. Viết `Client`: Quản lý 1 kết nối đơn lẻ, vòng lặp đọc tin (readPump) và ghi tin (writePump).
-[x] 3.3. Tích hợp Redis Pub/Sub:
-         - Mỗi khi nhận tin nhắn 1-1, publish vào channel `user:{receiverId}`.
-         - Server subscribe channel tương ứng để đẩy tin nhắn xuống socket đích.
-[x] 3.4. Lưu trữ tin nhắn vào MongoDB và gửi trả mã xác nhận (ACK).
-[x] 3.5. Viết API lấy lịch sử tin nhắn của một cuộc hội thoại (phân trang theo thời gian).
+GIAI ĐOẠN 3: WEBSOCKET HUB & NHẮN TIN CỐT LÕI 1-1 [ĐÃ HOÀN THÀNH]
+-> File tài liệu: stage3.md
+[x] 3.1. Viết Hub kết nối Goroutine kép (readPump / writePump).
+[x] 3.2. Tích hợp Redis Pub/Sub cho kênh người nhận.
+[x] 3.3. Lưu tin nhắn vào MongoDB và cấp phát ACK phản hồi.
+[x] 3.4. Viết REST API tải lịch sử tin nhắn cuộc hội thoại.
 
-GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN [ĐÃ HOÀN THÀNH]
-[x] 4.1. Khởi tạo project SvelteKit / Vite Svelte (`npm create svelte@latest frontend`).
-[x] 4.2. Cài đặt CSS/Icon (Vanilla CSS đẹp, Glassmorphism, Dark mode, Lucide icons).
-[x] 4.3. Xây dựng trang Đăng nhập / Đăng ký, lưu JWT Token vào LocalStorage/Cookie.
-[x] 4.4. Viết Module WebSocket client trong Svelte (tự động kết nối, tự động reconnect khi rớt mạng).
-[x] 4.5. Hiển thị danh sách cuộc trò chuyện và bong bóng tin nhắn cơ bản, nhắn tin real-time 1-1.
+GIAI ĐOẠN 4: FRONTEND SVELTE 5 & GIAO DIỆN CYBER DARK [ĐÃ HOÀN THÀNH]
+-> File tài liệu: stage4.md
+[x] 4.1. Khởi tạo Vite + Svelte 5, hệ thống màu Cyber Dark Glassmorphism.
+[x] 4.2. Xây dựng trang Auth (Đăng nhập / Đăng ký).
+[x] 4.3. Client WebSocket tự động kết nối và tự phục hồi kết nối.
+[x] 4.4. Nhắn tin trực tiếp thời gian thực giữa 2 tài khoản.
 
-GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS) [ĐANG TRIỂN KHAI]
-[x] 5.1. Triển khai Backend Presence (Redis TTL 30s + Heartbeat), Typing & Read Receipts Hub.
-[x] 5.2. Tạo utility phát âm thanh thông báo pop nhẹ nhàng (sound.js bằng Web Audio API).
-[x] 5.3. Nâng cấp store Svelte (onlineUsers, typingUsers) & tích hợp vào UI.
-[x] 5.4. Hoàn thiện Typing indicator animation và 2 tích xanh Read receipts trên Svelte.
+GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO [HOÀN TẤT CODE - SẴN SÀNG KIỂM THỬ]
+-> File tài liệu: stage5.md
+[x] 5.1. Heartbeat 15s + Redis TTL 30s + Broadcast presence Online/Offline.
+[x] 5.2. Typing indicator: Hiệu ứng 3 chấm nhảy động mượt mà khi gõ phím.
+[x] 5.3. Read receipts: Chuyển 1 tích xám sang 2 tích xanh dương khi bạn chat đọc tin.
+[x] 5.4. Âm thanh thông báo Web Audio API không phụ thuộc file ngoài.
 
-GIAI ĐOẠN 6: ĐÓNG GÓI, TEST TẢI VÀ TRIỂN KHAI (DEPLOYMENT)
-[ ] 6.1. Kiểm thử kịch bản 2 người dùng mở 2 trình duyệt khác nhau nhắn tin qua lại.
-[ ] 6.2. Kiểm tra trường hợp 1 bên tắt mạng/F5 trang: Dữ liệu tải lại đầy đủ, không mất tin nhắn.
-[ ] 6.3. Viết Dockerfile cho Backend Go (Multi-stage build cho file binary siêu nhẹ ~15-20MB).
-[ ] 6.4. Viết Dockerfile cho Frontend Svelte (build tĩnh qua Nginx).
-[ ] 6.5. Hoàn thiện tài liệu hướng dẫn chạy 1 click (`docker-compose up`).
+GIAI ĐOẠN 6: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES) [TIẾP THEO]
+-> File tài liệu: stage6.md
+[ ] 6.1. Backend API Upload file/ảnh đa định dạng (`POST /api/upload`) và static serving.
+[ ] 6.2. Cập nhật Model Message: `type` (image, file, voice), `file_name`, `file_size`.
+[ ] 6.3. Svelte Image Lightbox Modal: Phóng to ảnh toàn màn hình khi click.
+[ ] 6.4. Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V`).
+[ ] 6.5. Ghi âm tin nhắn thoại (Voice Note) bằng Web Audio API & MediaRecorder.
 
-================================================================================
-KẾT LUẬN:
-Theo lộ trình trên, bạn sẽ làm chủ hoàn toàn:
-1. Tư duy kiến trúc hệ thống phân tán Realtime hiện đại (Websocket + Pub/Sub).
-2. Kỹ năng lập trình Go concurrency (Goroutine, Channel, Mutex).
-3. Sử dụng Redis hiệu quả cho In-Memory cache, Pub/Sub và TTL.
-4. Thiết kế Indexing tối ưu trong MongoDB cho bài toán Big Data / Chat.
-5. Xây dựng giao diện phản ứng nhanh, mượt mà với Svelte.
+GIAI ĐOẠN 7: TƯƠNG TÁC TIN NHẮN (REACTIONS, REPLY, DELETE, EDIT)
+-> File tài liệu: stage7.md
+[ ] 7.1. Cập nhật Model Message: `reactions`, `reply_to`, `is_deleted`, `is_edited`.
+[ ] 7.2. WebSocket Hub xử lý `chat:react`, `chat:delete`, `chat:edit`.
+[ ] 7.3. Thanh Quick Reaction Bar và Action Menu khi hover vào tin nhắn.
+[ ] 7.4. Khung trích dẫn tin nhắn cũ khi bấm trả lời (Reply).
+[ ] 7.5. Chế độ sửa tin nhắn và hiển thị tin nhắn đã thu hồi.
+
+GIAI ĐOẠN 8: TRÒ CHUYỆN NHÓM (GROUP CHAT)
+-> File tài liệu: stage8.md
+[ ] 8.1. Model Group MongoDB & REST API tạo nhóm, quản lý thành viên.
+[ ] 8.2. Redis Pub/Sub channel nhóm `group:chat:{groupId}`.
+[ ] 8.3. Giao diện tạo nhóm, danh sách nhóm và bong bóng chat hiển thị tên/avatar người gửi.
+
+GIAI ĐOẠN 9: CUỘC GỌI THOẠI & VIDEO CALL 1-1 (WEBRTC)
+-> File tài liệu: stage9.md
+[ ] 9.1. WebSocket Signaling Hub: Trao đổi Offer, Answer, ICE Candidates qua STUN Google.
+[ ] 9.2. WebRTC Manager trên Svelte: Quản lý Peer Connection & Media Streams.
+[ ] 9.3. Giao diện Call Modal: Màn hình chuông reo, Video lớn, Camera nhỏ, nút Mute/Cúp máy.
+
+GIAI ĐOẠN 10 (FINAL): ĐÓNG GÓI DOCKER & TRIỂN KHAI PRODUCTION
+-> File tài liệu: stage10.md
+[ ] 10.1. Dockerfile Multi-stage build cho Go binary (~15MB).
+[ ] 10.2. Dockerfile Multi-stage build cho Frontend Svelte với Nginx Alpine.
+[ ] 10.3. File `docker-compose.yml` 1-click khởi chạy toàn bộ 4 dịch vụ.
+[ ] 10.4. Kiểm thử tải, tính ổn định và hướng dẫn triển khai lên Cloud / VPS.
+
 ================================================================================
