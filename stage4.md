@@ -30,7 +30,7 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng giao diệ
   ```
 - [x] **3. Thiết lập Design System & CSS Tokens:**
   - `src/app.css` (Màu sắc HSL, Dark Mode, Glassmorphism, Animation, Custom Scrollbar)
-- [ ] **4. Xây dựng Stores & WebSocket Service:**
+- [x] **4. Xây dựng Stores & WebSocket Service:**
   - `src/lib/stores/auth.js` (Lưu User & JWT Token vào LocalStorage)
   - `src/lib/stores/chat.js` (Lưu danh sách hội thoại & tin nhắn đang chat)
   - `src/lib/services/websocket.js` (Tự động kết nối, tự động reconnect, bắt sự kiện)
