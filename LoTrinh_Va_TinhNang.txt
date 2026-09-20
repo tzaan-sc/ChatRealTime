@@ -141,7 +141,7 @@ GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS)
 [x] 5.1. Triển khai Backend Presence (Redis TTL 30s + Heartbeat), Typing & Read Receipts Hub.
 [x] 5.2. Tạo utility phát âm thanh thông báo pop nhẹ nhàng (sound.js bằng Web Audio API).
 [x] 5.3. Nâng cấp store Svelte (onlineUsers, typingUsers) & tích hợp vào UI.
-[ ] 5.4. Hoàn thiện Typing indicator animation và 2 tích xanh Read receipts trên Svelte.
+[x] 5.4. Hoàn thiện Typing indicator animation và 2 tích xanh Read receipts trên Svelte.
 
 GIAI ĐOẠN 6: ĐÓNG GÓI, TEST TẢI VÀ TRIỂN KHAI (DEPLOYMENT)
 [ ] 6.1. Kiểm thử kịch bản 2 người dùng mở 2 trình duyệt khác nhau nhắn tin qua lại.

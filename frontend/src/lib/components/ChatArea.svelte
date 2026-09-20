@@ -1,29 +1,56 @@
 <script>
-  import { activeConversation, currentMessages, appendMessage } from '../stores/chat';
+  import { activeConversation, currentMessages, onlineUsers, typingUsers } from '../stores/chat';
   import { currentUser } from '../stores/auth';
   import { wsService } from '../services/websocket';
-  import { onMount, afterUpdate } from 'svelte';
-  import { Send, Smile, Paperclip } from 'lucide-svelte';
+  import { afterUpdate } from 'svelte';
+  import { Send } from 'lucide-svelte';
 
   let inputContent = '';
   let messagesContainer;
+  let typingTimeout;
+  let isTyping = false;
 
-  function scrollToBottom() {
+  // Kiểm tra đối phương có online không
+  $: partnerID = $activeConversation?.other_user?.id;
+  $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
+  $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
+
+  // Tự động cuộn xuống đáy khi có tin nhắn mới
+  afterUpdate(() => {
     if (messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
-  }
-
-  afterUpdate(() => {
-    scrollToBottom();
   });
 
-  function handleSend() {
-    if (!inputContent.trim() || !$activeConversation) return;
+  // Bắt sự kiện gõ phím để bắn Typing Indicator
+  function handleInput() {
+    if (!$activeConversation || !partnerID) return;
 
-    const receiverID = $activeConversation.other_user.id;
+    if (!isTyping) {
+      isTyping = true;
+      wsService.send('typing:start', { receiver_id: partnerID });
+    }
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      isTyping = false;
+      wsService.send('typing:stop', { receiver_id: partnerID });
+    }, 2000);
+  }
+
+  // Gửi tin nhắn
+  function handleSend() {
+    if (!inputContent.trim() || !$activeConversation || !partnerID) return;
+
+    // Dừng typing khi gửi tin
+    clearTimeout(typingTimeout);
+    if (isTyping) {
+      isTyping = false;
+      wsService.send('typing:stop', { receiver_id: partnerID });
+    }
+
     wsService.send('chat:send', {
-      receiver_id: receiverID,
+      receiver_id: partnerID,
       content: inputContent.trim(),
       type: 'text'
     });
@@ -36,6 +63,14 @@
       e.preventDefault();
       handleSend();
     }
+  }
+
+  // Gửi event xác nhận đã đọc khi đang mở xem khung chat
+  $: if ($activeConversation && partnerID) {
+    wsService.send('chat:read', {
+      conversation_id: $activeConversation.conversation.custom_id,
+      partner_id: partnerID
+    });
   }
 </script>
 
@@ -52,10 +87,21 @@
     <!-- Header -->
     <div class="chat-header glass-card">
       <div class="partner-info">
-        <img src={$activeConversation.other_user.avatar_url} alt="avatar" class="header-avatar" />
+        <div class="avatar-wrap">
+          <img src={$activeConversation.other_user.avatar_url} alt="avatar" class="header-avatar" />
+          <span class="status-dot" class:online={isPartnerOnline}></span>
+        </div>
         <div>
           <h3>{$activeConversation.other_user.display_name || $activeConversation.other_user.username}</h3>
-          <span class="status-sub">Sẵn sàng nhận tin</span>
+          <span class="status-sub">
+            {#if isPartnerTyping}
+              <span class="typing-text">đang soạn tin...</span>
+            {:else if isPartnerOnline}
+              <span class="online-text">Đang hoạt động</span>
+            {:else}
+              <span class="offline-text">Ngoại tuyến</span>
+            {/if}
+          </span>
         </div>
       </div>
     </div>
@@ -67,12 +113,30 @@
         <div class="message-row" class:me={isMe}>
           <div class="bubble" class:bubble-me={isMe} class:bubble-other={!isMe}>
             <p class="text">{msg.content}</p>
-            <span class="timestamp">
-              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+            <div class="msg-meta">
+              <span class="timestamp">
+                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              {#if isMe}
+                <span class="receipt-icon" class:seen={msg.is_read} title={msg.is_read ? 'Đã xem' : 'Đã gửi'}>
+                  {msg.is_read ? '✓✓' : '✓'}
+                </span>
+              {/if}
+            </div>
           </div>
         </div>
       {/each}
+
+      <!-- Animation Đang Gõ Phím (Typing Dots) -->
+      {#if isPartnerTyping}
+        <div class="message-row">
+          <div class="typing-bubble glass-card">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Input Footer -->
@@ -82,6 +146,7 @@
           rows="1"
           placeholder="Nhập tin nhắn... (Nhấn Enter để gửi)"
           bind:value={inputContent}
+          on:input={handleInput}
           on:keydown={handleKeyDown}
         ></textarea>
         <button class="send-btn" on:click={handleSend} disabled={!inputContent.trim()}>
@@ -105,9 +170,26 @@
     align-items: center;
   }
   .partner-info { display: flex; align-items: center; gap: 14px; }
+  .avatar-wrap { position: relative; }
   .header-avatar { width: 44px; height: 44px; border-radius: 50%; }
+  .status-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--offline-color);
+    border: 2px solid var(--bg-primary);
+  }
+  .status-dot.online { background: var(--online-color); }
   .partner-info h3 { font-size: 16px; font-weight: 600; color: #fff; }
-  .status-sub { font-size: 12px; color: var(--text-dim); }
+  .status-sub { font-size: 12px; }
+  .online-text { color: var(--online-color); }
+  .offline-text { color: var(--text-dim); }
+  .typing-text { color: #a78bfa; font-style: italic; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
   .messages-viewport {
     flex: 1;
     overflow-y: auto;
@@ -137,13 +219,40 @@
     border: 1px solid var(--border-glass);
   }
   .text { font-size: 14px; line-height: 1.5; }
-  .timestamp {
-    display: block;
-    font-size: 10px;
-    opacity: 0.7;
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
     margin-top: 4px;
-    text-align: right;
   }
+  .timestamp { font-size: 10px; opacity: 0.75; }
+  .receipt-icon { font-size: 11px; font-weight: 700; opacity: 0.6; }
+  .receipt-icon.seen { color: #38bdf8; opacity: 1; }
+
+  /* Typing Indicator Animation */
+  .typing-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    border-bottom-left-radius: 4px;
+  }
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    background: #a78bfa;
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite ease-in-out both;
+  }
+  .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+  .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+
   .chat-footer { padding: 16px 24px; border-top: 1px solid var(--border-glass); }
   .input-wrapper {
     display: flex;

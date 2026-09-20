@@ -22,11 +22,11 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
   - [x] Thêm store `onlineUsers` lưu danh sách ID người đang online.
   - [x] Thêm store `typingUsers` lưu trạng thái ai đang gõ tin nhắn.
   - [x] Thêm hàm đánh dấu tin nhắn đã đọc `markMessagesAsReadLocally()`.
-- [ ] **4. Nâng cấp `ChatArea.svelte`:**
-  - [ ] Bắt sự kiện gõ phím trong `<textarea>`, gửi `typing:start` và debounce 2s gửi `typing:stop`.
-  - [ ] Hiển thị animation 3 dấu chấm nhảy sinh động khi đối phương đang gõ.
-  - [ ] Hiển thị 1 dấu tích xám (đã gửi) và 2 dấu tích xanh (đã xem).
-  - [ ] Tự động gửi `chat:read` khi mở xem cuộc trò chuyện.
+- [x] **4. Nâng cấp `ChatArea.svelte`:**
+  - [x] Bắt sự kiện gõ phím trong `<textarea>`, gửi `typing:start` và debounce 2s gửi `typing:stop`.
+  - [x] Hiển thị animation 3 dấu chấm nhảy sinh động khi đối phương đang gõ.
+  - [x] Hiển thị 1 dấu tích xám (đã gửi) và 2 dấu tích xanh (đã xem).
+  - [x] Tự động gửi `chat:read` khi mở xem cuộc trò chuyện.
 - [ ] **5. Nâng cấp `Sidebar.svelte`:**
   - [ ] Hiển thị chấm tròn màu xanh lá khi bạn chat đang online.
 - [ ] **6. Nâng cấp `App.svelte`:**
