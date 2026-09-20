@@ -40,7 +40,7 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng giao diệ
   - `src/lib/components/Sidebar.svelte` (Danh sách hội thoại, tìm kiếm & danh bạ)
   - `src/lib/components/ChatArea.svelte` (Khung chat chính, header, danh sách tin nhắn, ô nhập liệu)
 - [x] **6. Lắp ráp ứng dụng chính trong `src/App.svelte`**
-- [ ] **7. Khởi chạy và kiểm thử giao diện tại `http://localhost:5173`**
+- [x] **7. Khởi chạy và kiểm thử giao diện tại `http://localhost:5173`**
 
 ---
 
