@@ -979,8 +979,19 @@ func main() {
 ## Bước 8: Chạy Server và Kiểm thử WebSocket
 
 ### 8.1. Khởi động Server
+1. Mở docker destop
+2. Khởi động mongo và redis bằng lệnh:
+   cd d:\GIT\ChatRealTime
+   docker compose up -d
+   - Tham số -d giúp chạy ngầm các container MongoDB (port 27017) và Redis (port 6379).
+3. Mở CMD hoặc terminal khác và chạy lệnh:
+- Kiểm tra container đã hoạt động chưa: docker ps
+4. Chạy Backend Server
 ```powershell
 cd d:\GIT\ChatRealTime\backend
+
+go mod tidy
+
 go run cmd/server/main.go
 ```
 
