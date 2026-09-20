@@ -35,12 +35,11 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng giao diệ
   - `src/lib/stores/chat.js` (Lưu danh sách hội thoại & tin nhắn đang chat)
   - `src/lib/services/websocket.js` (Tự động kết nối, tự động reconnect, bắt sự kiện)
   - `src/lib/services/api.js` (Gọi REST API: Auth, Lịch sử chat, Danh bạ)
-- [ ] **5. Xây dựng các Component giao diện:**
+- [x] **5. Xây dựng các Component giao diện:**
   - `src/lib/components/AuthModal.svelte` (Đăng nhập / Đăng ký)
   - `src/lib/components/Sidebar.svelte` (Danh sách hội thoại, tìm kiếm & danh bạ)
   - `src/lib/components/ChatArea.svelte` (Khung chat chính, header, danh sách tin nhắn, ô nhập liệu)
-  - `src/lib/components/MessageBubble.svelte` (Bong bóng tin nhắn của tôi & của bạn chat)
-- [ ] **6. Lắp ráp ứng dụng chính trong `src/App.svelte`**
+- [x] **6. Lắp ráp ứng dụng chính trong `src/App.svelte`**
 - [ ] **7. Khởi chạy và kiểm thử giao diện tại `http://localhost:5173`**
 
 ---
