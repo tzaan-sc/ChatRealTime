@@ -16,8 +16,8 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
   - [x] Tự động broadcast `user:status` (online = true/false) khi client kết nối & ngắt kết nối.
   - [x] Chuyển tiếp sự kiện `typing:start` và `typing:stop` qua Redis Pub/Sub tới đối phương.
   - [x] Xử lý sự kiện `chat:read`: Đánh dấu đã đọc trong MongoDB và bắn `chat:read_ack` về cho người gửi.
-- [ ] **2. Tạo tiện ích âm thanh thông báo (`frontend/src/lib/utils/sound.js`):**
-  - [ ] Viết hàm `playNotificationSound()` bằng Web Audio API thuần.
+- [x] **2. Tạo tiện ích âm thanh thông báo (`frontend/src/lib/utils/sound.js`):**
+  - [x] Viết hàm `playNotificationSound()` bằng Web Audio API thuần.
 - [ ] **3. Nâng cấp Store Chat (`frontend/src/lib/stores/chat.js`):**
   - [ ] Thêm store `onlineUsers` lưu danh sách ID người đang online.
   - [ ] Thêm store `typingUsers` lưu trạng thái ai đang gõ tin nhắn.

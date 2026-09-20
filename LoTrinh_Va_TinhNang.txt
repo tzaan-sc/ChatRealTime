@@ -121,7 +121,7 @@ GIAI ĐOẠN 2: KHỞI TẠO BACKEND GOLANG & XÁC THỰC (AUTH) [ĐÃ HOÀN TH�
          - GoDotEnv (`github.com/joho/godotenv`)
 [x] 2.4. Viết API Đăng ký, Đăng nhập, trả về JWT Token và API lấy profile `/api/auth/me`.
 
-GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI [ĐÃ HOÀN THÀNH CODE]
+GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI [ĐÃ HOÀN THÀNH]
 [x] 3.1. Viết `Hub` quản lý kết nối: Register client, Unregister client, Broadcast channel.
 [x] 3.2. Viết `Client`: Quản lý 1 kết nối đơn lẻ, vòng lặp đọc tin (readPump) và ghi tin (writePump).
 [x] 3.3. Tích hợp Redis Pub/Sub:
@@ -130,18 +130,18 @@ GIAI ĐOẠN 3: XÂY DỰNG WEBSOCKET HUB VÀ LUỒNG NHẮN TIN CỐT LÕI [Đ�
 [x] 3.4. Lưu trữ tin nhắn vào MongoDB và gửi trả mã xác nhận (ACK).
 [x] 3.5. Viết API lấy lịch sử tin nhắn của một cuộc hội thoại (phân trang theo thời gian).
 
-GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN
-[ ] 4.1. Khởi tạo project SvelteKit / Vite Svelte (`npm create svelte@latest frontend`).
-[ ] 4.2. Cài đặt CSS/Icon (Vanilla CSS đẹp, Glassmorphism, Dark mode).
-[ ] 4.3. Xây dựng trang Đăng nhập / Đăng ký, lưu JWT Token vào LocalStorage/Cookie.
-[ ] 4.4. Viết Module WebSocket client trong Svelte (tự động kết nối, tự động reconnect khi rớt mạng).
-[ ] 4.5. Hiển thị danh sách cuộc trò chuyện và bong bóng tin nhắn cơ bản.
+GIAI ĐOẠN 4: KHỞI TẠO FRONTEND SVELTE VÀ GIAO DIỆN CƠ BẢN [ĐÃ HOÀN THÀNH]
+[x] 4.1. Khởi tạo project SvelteKit / Vite Svelte (`npm create svelte@latest frontend`).
+[x] 4.2. Cài đặt CSS/Icon (Vanilla CSS đẹp, Glassmorphism, Dark mode, Lucide icons).
+[x] 4.3. Xây dựng trang Đăng nhập / Đăng ký, lưu JWT Token vào LocalStorage/Cookie.
+[x] 4.4. Viết Module WebSocket client trong Svelte (tự động kết nối, tự động reconnect khi rớt mạng).
+[x] 4.5. Hiển thị danh sách cuộc trò chuyện và bong bóng tin nhắn cơ bản, nhắn tin real-time 1-1.
 
-GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS)
-[ ] 5.1. Triển khai Heartbeat (Ping từ Svelte -> Go -> Redis TTL) để hiển thị Online/Offline.
-[ ] 5.2. Triển khai sự kiện `typing`: Gõ phím gửi event, bên nhận hiển thị 3 chấm nhảy động.
-[ ] 5.3. Triển khai sự kiện `read`: Mở xem tin nhắn -> đánh dấu `is_read` và cập nhật UI hai bên.
-[ ] 5.4. Xử lý âm thanh thông báo nhẹ nhàng (Notification sound) khi có tin nhắn mới.
+GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO (PRESENCE, TYPING, READ RECEIPTS) [ĐANG TRIỂN KHAI]
+[x] 5.1. Triển khai Backend Presence (Redis TTL 30s + Heartbeat), Typing & Read Receipts Hub.
+[x] 5.2. Tạo utility phát âm thanh thông báo pop nhẹ nhàng (sound.js bằng Web Audio API).
+[ ] 5.3. Nâng cấp store Svelte (onlineUsers, typingUsers) & tích hợp vào UI.
+[ ] 5.4. Hoàn thiện Typing indicator animation và 2 tích xanh Read receipts trên Svelte.
 
 GIAI ĐOẠN 6: ĐÓNG GÓI, TEST TẢI VÀ TRIỂN KHAI (DEPLOYMENT)
 [ ] 6.1. Kiểm thử kịch bản 2 người dùng mở 2 trình duyệt khác nhau nhắn tin qua lại.
