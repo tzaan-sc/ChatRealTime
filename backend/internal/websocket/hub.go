@@ -229,6 +229,8 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 		ReceiverID:     req.ReceiverID,
 		Content:        req.Content,
 		Type:           msgType,
+		FileName:       req.FileName,
+		FileSize:       req.FileSize,
 		IsRead:         false,
 		CreatedAt:      time.Now(),
 	}
@@ -240,7 +242,21 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 
 	// 2. Cập nhật hội thoại
 	_, _ = h.convRepo.GetOrCreate(ctx, convID, client.UserID, req.ReceiverID)
-	_ = h.convRepo.UpdateLastMessage(ctx, convID, req.Content, client.UserID)
+	lastSnippet := req.Content
+	switch msgType {
+	case "image":
+		lastSnippet = "[Hình ảnh]"
+	case "voice":
+		lastSnippet = "[Tin nhắn thoại]"
+	case "file":
+		if req.FileName != "" {
+			lastSnippet = "[Tệp] " + req.FileName
+		} else {
+			lastSnippet = "[Tệp đính kèm]"
+		}
+	}
+	_ = h.convRepo.UpdateLastMessage(ctx, convID, lastSnippet, client.UserID)
+
 
 	// 3. Đóng gói Event bắn qua Redis Pub/Sub cho người nhận
 	eventReceive := models.WSEvent{

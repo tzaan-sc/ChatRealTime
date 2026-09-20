@@ -20,8 +20,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Định dạng token phải là 'Bearer <token>'"})
 			c.Abort()
 			return

@@ -35,11 +35,11 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Đã đọc tin nhắn (Read Receipts): Tích xám 1 tích (Đã gửi) -> 2 tích xanh dương (Đã đọc).
   - [x] Âm thanh thông báo Pop nhẹ nhàng chuẩn Web Audio API khi có tin nhắn tới.
 
-[MÔ-ĐUN 4: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES)]
-  - [ ] Upload hình ảnh (JPG, PNG, GIF), hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (Ctrl + V).
-  - [ ] Image Lightbox Modal: Click vào ảnh trong tin nhắn để phóng to toàn màn hình sắc nét.
-  - [ ] Gửi tệp đính kèm tài liệu (Word, Excel, PDF, Zip...) kèm kích thước dung lượng và nút tải về.
-  - [ ] Tin nhắn thoại (Voice Note): Thu âm trực tiếp bằng Micro trên trình duyệt và phát audio player.
+[MÔ-ĐUN 4: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES)] [ĐÃ HOÀN THÀNH]
+  - [x] Upload hình ảnh (JPG, PNG, GIF), hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (Ctrl + V).
+  - [x] Image Lightbox Modal: Click vào ảnh trong tin nhắn để phóng to toàn màn hình sắc nét.
+  - [x] Gửi tệp đính kèm tài liệu (Word, Excel, PDF, Zip...) kèm kích thước dung lượng và nút tải về.
+  - [x] Tin nhắn thoại (Voice Note): Thu âm trực tiếp bằng Micro trên trình duyệt và phát audio player.
 
 [MÔ-ĐUN 5: TƯƠNG TÁC TIN NHẮN (INTERACTIONS & ACTIONS)]
   - [ ] Quick Reaction Bar: Thả cảm xúc emoji nhanh (❤️, 😂, 👍, 😢, 🔥, 🚀).
@@ -101,13 +101,13 @@ GIAI ĐOẠN 5: TÍNH NĂNG REALTIME NÂNG CAO [HOÀN TẤT CODE - SẴN SÀNG K
 [x] 5.3. Read receipts: Chuyển 1 tích xám sang 2 tích xanh dương khi bạn chat đọc tin.
 [x] 5.4. Âm thanh thông báo Web Audio API không phụ thuộc file ngoài.
 
-GIAI ĐOẠN 6: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES) [TIẾP THEO]
+GIAI ĐOẠN 6: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES) [ĐÃ HOÀN THÀNH]
 -> File tài liệu: stage6.md
-[ ] 6.1. Backend API Upload file/ảnh đa định dạng (`POST /api/upload`) và static serving.
-[ ] 6.2. Cập nhật Model Message: `type` (image, file, voice), `file_name`, `file_size`.
-[ ] 6.3. Svelte Image Lightbox Modal: Phóng to ảnh toàn màn hình khi click.
-[ ] 6.4. Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V`).
-[ ] 6.5. Ghi âm tin nhắn thoại (Voice Note) bằng Web Audio API & MediaRecorder.
+[x] 6.1. Backend API Upload file/ảnh đa định dạng (`POST /api/upload`) và static serving.
+[x] 6.2. Cập nhật Model Message: `type` (image, file, voice), `file_name`, `file_size`.
+[x] 6.3. Svelte Image Lightbox Modal: Phóng to ảnh toàn màn hình khi click.
+[x] 6.4. Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V`).
+[x] 6.5. Ghi âm tin nhắn thoại (Voice Note) bằng Web Audio API & MediaRecorder.
 
 GIAI ĐOẠN 7: TƯƠNG TÁC TIN NHẮN (REACTIONS, REPLY, DELETE, EDIT)
 -> File tài liệu: stage7.md

@@ -42,6 +42,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 	chatHandler := handlers.NewChatHandler(chatService)
 	wsHandler := handlers.NewWSHandler(hub)
+	uploadHandler := handlers.NewUploadHandler()
 
 	// 7. Khởi tạo Router với cấu hình CORS đầy đủ
 	r := gin.Default()
@@ -51,12 +52,18 @@ func main() {
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 	r.Use(cors.New(corsConfig))
 
+	// Phục vụ file tĩnh đã tải lên (ảnh, voice, tài liệu)
+	r.Static("/uploads", "./uploads")
+
 	// Endpoint WebSocket
 	r.GET("/ws", wsHandler.HandleWS)
 
 	// REST API Routes
 	api := r.Group("/api")
 	{
+		// Upload File (ảnh, tệp đính kèm, voice note)
+		api.POST("/upload", middleware.AuthMiddleware(), uploadHandler.UploadFile)
+
 		// Auth Routes
 		auth := api.Group("/auth")
 		{
@@ -74,6 +81,7 @@ func main() {
 			chat.GET("/users", chatHandler.GetUsers)
 		}
 	}
+
 
 	port := os.Getenv("PORT")
 	if port == "" {

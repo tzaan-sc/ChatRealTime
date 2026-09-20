@@ -10,24 +10,25 @@ Giai đoạn này sẽ đưa ứng dụng chat của bạn lên một tầm cao 
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 6
 
-- [ ] **1. Xây dựng Backend Upload API (Golang):**
-  - [ ] Tạo thư mục `backend/uploads` và cấu hình static files `r.Static("/uploads", "./uploads")` trong Gin router.
-  - [ ] Viết Handler `UploadHandler` tiếp nhận multipart file (`POST /api/upload`), kiểm tra định dạng và sinh tên file an toàn (UUID / Timestamp).
-  - [ ] Cập nhật model `Message` trong MongoDB để hỗ trợ các thuộc tính: `type` ("image", "file", "voice"), `file_name`, `file_size`.
-- [ ] **2. Tạo Component Phóng to Ảnh (Image Lightbox Modal):**
-  - [ ] Viết `frontend/src/lib/components/ImageModal.svelte` cho phép phóng to ảnh sắc nét trên nền tối mờ.
-- [ ] **3. Tạo Component Thu âm & Phát Voice Note (Voice Message Player):**
-  - [ ] Sử dụng `navigator.mediaDevices.getUserMedia` và `MediaRecorder` API để ghi âm giọng nói.
-  - [ ] Viết trình phát Audio Player với nút Play/Pause và thanh tiến trình thời gian.
-- [ ] **4. Nâng cấp `ChatArea.svelte`:**
-  - [ ] Nút kẹp ghim 📎 chọn ảnh hoặc tài liệu từ máy tính.
-  - [ ] Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V` clipboard paste).
-  - [ ] Nút micro 🎙️ ghi âm giọng nói.
-  - [ ] Render trực quan các bong bóng tin nhắn:
+- [x] **1. Xây dựng Backend Upload API (Golang):**
+  - [x] Tạo thư mục `backend/uploads` và cấu hình static files `r.Static("/uploads", "./uploads")` trong Gin router.
+  - [x] Viết Handler `UploadHandler` tiếp nhận multipart file (`POST /api/upload`), kiểm tra định dạng và sinh tên file an toàn (UUID / Timestamp).
+  - [x] Cập nhật model `Message` trong MongoDB để hỗ trợ các thuộc tính: `type` ("image", "file", "voice"), `file_name`, `file_size`.
+- [x] **2. Tạo Component Phóng to Ảnh (Image Lightbox Modal):**
+  - [x] Viết `frontend/src/lib/components/ImageModal.svelte` cho phép phóng to ảnh sắc nét trên nền tối mờ.
+- [x] **3. Tạo Component Thu âm & Phát Voice Note (Voice Message Player):**
+  - [x] Sử dụng `navigator.mediaDevices.getUserMedia` và `MediaRecorder` API để ghi âm giọng nói.
+  - [x] Viết trình phát Audio Player với nút Play/Pause và thanh tiến trình thời gian.
+- [x] **4. Nâng cấp `ChatArea.svelte`:**
+  - [x] Nút kẹp ghim 📎 chọn ảnh hoặc tài liệu từ máy tính.
+  - [x] Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V` clipboard paste).
+  - [x] Nút micro 🎙️ ghi âm giọng nói.
+  - [x] Render trực quan các bong bóng tin nhắn:
     - Ảnh: Hiển thị thumbnail bo góc, click để phóng to.
     - File: Hiển thị icon tệp, tên file, dung lượng (KB/MB) và nút tải về.
     - Voice: Hiển thị thanh nghe audio với nút Play/Pause.
-- [ ] **5. Kiểm thử toàn diện 6 kịch bản đa phương tiện (Ảnh, PDF, Voice, Lightbox, Tải về)**.
+- [x] **5. Kiểm thử toàn diện 6 kịch bản đa phương tiện (Ảnh, PDF, Voice, Lightbox, Tải về)**.
+
 
 ---
 
