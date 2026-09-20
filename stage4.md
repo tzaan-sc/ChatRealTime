@@ -18,17 +18,17 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng giao diệ
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 4
 
-- [ ] **1. Khởi tạo dự án Frontend bằng Vite + Svelte:**
+- [x] **1. Khởi tạo dự án Frontend bằng Vite + Svelte:**
   ```powershell
   npm create vite@latest frontend -- --template svelte
   cd frontend
   npm install
   ```
-- [ ] **2. Cài đặt các thư viện icon & tiện ích:**
+- [x] **2. Cài đặt các thư viện icon & tiện ích:**
   ```powershell
   npm install lucide-svelte
   ```
-- [ ] **3. Thiết lập Design System & CSS Tokens:**
+- [x] **3. Thiết lập Design System & CSS Tokens:**
   - `src/app.css` (Màu sắc HSL, Dark Mode, Glassmorphism, Animation, Custom Scrollbar)
 - [ ] **4. Xây dựng Stores & WebSocket Service:**
   - `src/lib/stores/auth.js` (Lưu User & JWT Token vào LocalStorage)
