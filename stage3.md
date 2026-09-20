@@ -997,41 +997,186 @@ go run cmd/server/main.go
 
 ---
 
-### 8.2. Kịch bản kiểm thử Chat 2 người (Alex & Bob)
+### 8.2. Kịch bản kiểm thử Chat 2 người (Alex & Bob) chi tiết
 
-#### Bước A: Đăng ký 2 tài khoản qua Postman / Thunder Client
-1. **Tài khoản 1 (Alex):**
-   - `POST http://localhost:8080/api/auth/register` $\to$ nhận `token_alex` và `id_alex`.
-2. **Tài khoản 2 (Bob):**
-   - `POST http://localhost:8080/api/auth/register` (Username: `bob`, Password: `password123`) $\to$ nhận `token_bob` và `id_bob`.
+Dưới đây là kịch bản hoàn chỉnh từng bước để bạn kiểm thử luồng hoạt động: **Đăng ký tài khoản $\to$ Kết nối WebSocket $\to$ Nhắn tin qua lại thời gian thực (Real-time).**
 
 ---
 
-#### Bước B: Kết nối WebSocket & Nhắn tin thời gian thực
+#### 📌 Bước A: Tạo tài khoản cho Alex và Bob (REST API)
 
-##### 👉 Kết nối bằng Postman (Hỗ trợ WebSocket trực tiếp):
-1. Trong Postman, bấm **New** $\to$ chọn **WebSocket Request**.
-2. **Tab 1 (Alex):**
-   - URL: `ws://localhost:8080/ws?token=<token_alex>` $\to$ Bấm **Connect**.
-3. **Tab 2 (Bob):**
-   - URL: `ws://localhost:8080/ws?token=<token_bob>` $\to$ Bấm **Connect**.
+Mở **Postman** (hoặc Thunder Client / cURL) để gọi API HTTP.
 
-##### 👉 Gửi tin nhắn từ Alex sang Bob:
-Tại cửa sổ của **Alex**, gửi gói tin JSON:
+##### 1. Đăng ký tài khoản 1 (Alex)
+- **Method:** `POST`
+- **URL:** `http://localhost:8080/api/auth/register`
+- **Headers:** `Content-Type: application/json`
+- **Body (raw JSON):**
+  ```json
+  {
+    "username": "alex",
+    "email": "alex@gmail.com",
+    "password": "password123",
+    "display_name": "Alex Smith"
+  }
+  ```
+  ##### KẾT QUẢ Response trả về (HTTP 201 Created):
+  ```json
+	{
+		"data": {
+			"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNmFhZmNkODQyOWQzZjkwNDk0MjExODg4IiwidXNlcm5hbWUiOiJhbGV4IiwiZXhwIjoxNzkwNTExMTA4LCJpYXQiOjE3ODk5MDYzMDh9.QvnPf-_PVS-gn6IZ0Qt-g_YHK_k7JR4nJzpzFK4Gvjg",
+			"user": {
+				"id": "6aafcd8429d3f90494211888",
+				"username": "alex",
+				"email": "alex@gmail.com",
+				"display_name": "Alex Smith",
+				"avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=alex",
+				"created_at": "2026-09-20T19:11:48.4173104+07:00",
+				"updated_at": "2026-09-20T19:11:48.4173104+07:00"
+			}
+		},
+		"message": "Đăng ký tài khoản thành công"
+	}
+  ```
+
+  > 📝 **LƯU Ý:** Sao chép lại 2 giá trị:
+  > - `token_alex`: Toàn bộ chuỗi token trong `"token"`.
+  > - `id_alex`: Chuỗi ID trong `"id"`.
+
+##### 2. Đăng ký tài khoản 2 (Bob)
+- **Method:** `POST`
+- **URL:** `http://localhost:8080/api/auth/register`
+- **Headers:** `Content-Type: application/json`
+- **Body (raw JSON):**
+  ```json
+  {
+    "username": "bob",
+    "email": "bob@gmail.com",
+    "password": "password123",
+    "display_name": "Bob Nguyen"
+  }
+  ```
+##### KẾT QUẢ Response trả về (HTTP 201 Created):
+  ```json
+  {
+    "data": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNmFhZmNlMmMyOWQzZjkwNDk0MjExODg5IiwidXNlcm5hbWUiOiJib2IiLCJleHAiOjE3OTA1MTEyNzYsImlhdCI6MTc4OTkwNjQ3Nn0.32Gn-fe3PPa8UCfrMJUf7_BzbfZGuGX0GLWVClrG8XI",
+        "user": {
+            "id": "6aafce2c29d3f90494211889",
+            "username": "bob",
+            "email": "bob@gmail.com",
+            "display_name": "Bob Nguyen",
+            "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=bob",
+            "created_at": "2026-09-20T19:14:36.0243291+07:00",
+            "updated_at": "2026-09-20T19:14:36.0243291+07:00"
+        }
+    },
+    "message": "Đăng ký tài khoản thành công"
+}
+  ```
+
+  
+
+*(Mẹo: Nếu tài khoản đã tồn tại, dùng API `POST http://localhost:8080/api/auth/login` với `username` và `password` để lấy token).*
+
+---
+
+#### 📌 Bước B: Mở 2 Tab WebSocket trên Postman
+
+1. Trong Postman, click vào menu **New** (góc trên bên trái) $\to$ chọn **WebSocket Request**.
+2. Thiết lập cho **Tab 1 (Đại diện cho Alex):**
+   - URL: `ws://localhost:8080/ws?token=<token_alex_vừa_copy_ở_bước_A>`
+   - Bấm nút **Connect**.
+   - ✅ Kiểm tra: Cột tin nhắn sẽ hiện chấm tròn màu xanh lá kèm chữ **Connected**. Terminal chạy `go run` sẽ log:
+     ```
+     🟢 User connected: alex (ID: 67de23a189f301bc5e000001) | Tổng online: 1
+     ```
+
+3. Mở thêm 1 Tab WebSocket mới nữa: Bấm **New** $\to$ **WebSocket Request** $\to$ **Tab 2 (Đại diện cho Bob):**
+   - URL: `ws://localhost:8080/ws?token=<token_bob_vừa_copy_ở_bước_A>`
+   - Bấm nút **Connect**.
+   - ✅ Kiểm tra: Kết nối chuyển sang **Connected**. Terminal chạy `go run` sẽ log:
+     ```
+     🟢 User connected: bob (ID: 67de23b289f301bc5e000002) | Tổng online: 2
+     ```
+
+---
+
+#### 📌 Bước C: Alex gửi tin nhắn cho Bob
+
+1. Chuyển sang **Tab 1 (Alex)** trên Postman.
+2. Dưới mục **Message**, định dạng chọn **JSON**, dán nội dung sau vào (thay `id_bob` của bạn vào):
+   ```json
+   {
+     "event": "chat:send",
+     "payload": {
+       "receiver_id": "<dán_id_của_bob_ở_đây>",
+       "content": "Chào Bob! Tin nhắn thời gian thực qua Go, WebSocket và Redis hoạt động rồi này!",
+       "type": "text"
+     }
+   }
+   ```
+3. Bấm nút **Send**.
+
+---
+
+#### 📌 Bước D: Quan sát và kiểm chứng kết quả
+
+##### 1. Tại Tab 1 (Alex):
+Ngay sau khi bấm Send, Alex sẽ nhận lại một gói tin phản hồi xác nhận từ server (**`chat:ack`**):
 ```json
 {
-  "event": "chat:send",
+  "event": "chat:ack",
   "payload": {
-    "receiver_id": "<id_bob>",
-    "content": "Chào Bob! Tin nhắn thời gian thực qua Go + Redis!",
-    "type": "text"
+    "temp_id": "67de240089f301bc5e000003",
+    "created_at": "2026-09-20T19:15:00.123Z",
+    "message": {
+      "id": "67de240089f301bc5e000003",
+      "conversation_id": "67de23a189f301bc5e000001_67de23b289f301bc5e000002",
+      "sender_id": "67de23a189f301bc5e000001",
+      "receiver_id": "67de23b289f301bc5e000002",
+      "content": "Chào Bob! Tin nhắn thời gian thực qua Go, WebSocket và Redis hoạt động rồi này!",
+      "type": "text",
+      "is_read": false,
+      "created_at": "2026-09-20T19:15:00.123Z"
+    }
   }
 }
 ```
 
-##### 👉 Kết quả mong đợi:
-1. **Bên Alex:** Nhận ngay gói tin `chat:ack` (xác nhận tin đã được gửi và lưu MongoDB).
-2. **Bên Bob:** Nhận ngay gói tin `chat:receive` với nội dung tin nhắn của Alex trong chớp mắt!
+##### 2. Tại Tab 2 (Bob):
+Bob không cần bấm gì cả, màn hình Messages của Bob sẽ **tự động nhảy ra tin nhắn mới** (**`chat:receive`**) gần như tức thì (< 5ms):
+```json
+{
+  "event": "chat:receive",
+  "payload": {
+    "id": "67de240089f301bc5e000003",
+    "conversation_id": "67de23a189f301bc5e000001_67de23b289f301bc5e000002",
+    "sender_id": "67de23a189f301bc5e000001",
+    "receiver_id": "67de23b289f301bc5e000002",
+    "content": "Chào Bob! Tin nhắn thời gian thực qua Go, WebSocket và Redis hoạt động rồi này!",
+    "type": "text",
+    "is_read": false,
+    "created_at": "2026-09-20T19:15:00.123Z"
+  }
+}
+```
+
+---
+
+#### 📌 Bước E: Bob gửi phản hồi lại Alex
+Tại **Tab 2 (Bob)**, gửi ngược lại cho Alex:
+```json
+{
+  "event": "chat:send",
+  "payload": {
+    "receiver_id": "<dán_id_của_alex_ở_đây>",
+    "content": "Tuyệt vời Alex ơi, mình nhận được ngay lập tức!",
+    "type": "text"
+  }
+}
+```
+$\implies$ Kiểm tra bên Tab 1 của Alex cũng sẽ tự động nhận được gói tin `chat:receive`!
 
 ---
 
