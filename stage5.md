@@ -27,8 +27,8 @@ Tài liệu này sẽ hướng dẫn bạn nâng tầm trải nghiệm ứng d�
   - [x] Hiển thị animation 3 dấu chấm nhảy sinh động khi đối phương đang gõ.
   - [x] Hiển thị 1 dấu tích xám (đã gửi) và 2 dấu tích xanh (đã xem).
   - [x] Tự động gửi `chat:read` khi mở xem cuộc trò chuyện.
-- [ ] **5. Nâng cấp `Sidebar.svelte`:**
-  - [ ] Hiển thị chấm tròn màu xanh lá khi bạn chat đang online.
+- [x] **5. Nâng cấp `Sidebar.svelte`:**
+  - [x] Hiển thị chấm tròn màu xanh lá khi bạn chat đang online.
 - [ ] **6. Nâng cấp `App.svelte`:**
   - [ ] Tự động gửi `heartbeat` định kỳ mỗi 15 giây.
   - [ ] Lắng nghe toàn bộ sự kiện nâng cao (`user:status`, `typing:start`, `typing:stop`, `chat:read_ack`).

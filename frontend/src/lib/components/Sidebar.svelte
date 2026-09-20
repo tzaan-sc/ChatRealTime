@@ -1,14 +1,20 @@
 <script>
-  import { conversations, activeConversation, selectConversation, userDirectory } from '../stores/chat';
+  import { conversations, activeConversation, selectConversation, userDirectory, onlineUsers } from '../stores/chat';
   import { currentUser, logout, token } from '../stores/auth';
   import { apiRequest } from '../services/api';
-  import { onMount } from 'svelte';
   import { MessageSquarePlus, LogOut, Search } from 'lucide-svelte';
 
   let showUsersModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
+
+  // Lọc danh sách hội thoại theo từ khoá tìm kiếm
+  $: filteredConversations = $conversations.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const name = (item.other_user.display_name || item.other_user.username || '').toLowerCase();
+    return name.includes(searchQuery.toLowerCase());
+  });
 
   async function openNewChatModal() {
     showUsersModal = true;
@@ -65,16 +71,21 @@
 
   <!-- Conversation List -->
   <div class="conversation-list">
-    {#if $conversations.length === 0}
-      <div class="empty-state">Chưa có cuộc trò chuyện nào. Bấm nút dấu cộng để bắt đầu nhắn tin!</div>
+    {#if filteredConversations.length === 0}
+      <div class="empty-state">
+        {searchQuery.trim() ? 'Không tìm thấy cuộc trò chuyện phù hợp' : 'Chưa có cuộc trò chuyện nào. Bấm nút dấu cộng để bắt đầu nhắn tin!'}
+      </div>
     {:else}
-      {#each $conversations as item}
+      {#each filteredConversations as item}
         <div
           class="conversation-item"
           class:active={$activeConversation?.conversation?.custom_id === item.conversation.custom_id}
           on:click={() => selectConversation(item)}
         >
-          <img src={item.other_user.avatar_url} alt="avatar" class="avatar" />
+          <div class="avatar-container">
+            <img src={item.other_user.avatar_url} alt="avatar" class="avatar" />
+            <span class="user-status-dot" class:online={$onlineUsers.has(item.other_user.id)}></span>
+          </div>
           <div class="content">
             <div class="top-line">
               <span class="name">{item.other_user.display_name || item.other_user.username}</span>
@@ -114,7 +125,10 @@
         <div class="user-list">
           {#each $userDirectory as u}
             <div class="user-item" on:click={() => startChatWithUser(u)}>
-              <img src={u.avatar_url} alt="avatar" class="avatar" />
+              <div class="avatar-container">
+                <img src={u.avatar_url} alt="avatar" class="avatar" />
+                <span class="user-status-dot" class:online={$onlineUsers.has(u.id)}></span>
+              </div>
               <div>
                 <p class="u-name">{u.display_name || u.username}</p>
                 <p class="u-sub">@{u.username}</p>
@@ -194,7 +208,22 @@
   }
   .conversation-item:hover { background: rgba(255, 255, 255, 0.05); }
   .conversation-item.active { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); }
+
+  /* Avatar & Online Dot */
+  .avatar-container { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
   .avatar { width: 46px; height: 46px; border-radius: 50%; }
+  .user-status-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--offline-color);
+    border: 2px solid var(--bg-secondary);
+  }
+  .user-status-dot.online { background: var(--online-color); }
+
   .content { flex: 1; min-width: 0; }
   .top-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
   .name { font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -220,7 +249,7 @@
   .close-btn:hover { color: #fff; }
   .error-msg { color: #f87171; font-size: 13px; text-align: center; padding: 12px; }
   .user-list { max-height: 300px; overflow-y: auto; }
-  .user-item { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; }
+  .user-item { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; align-items: center; }
   .user-item:hover { background: rgba(255, 255, 255, 0.08); }
   .u-name { font-size: 14px; font-weight: 600; }
   .u-sub { font-size: 12px; color: var(--text-dim); }

@@ -53,10 +53,10 @@ II. BẢN ĐỒ TÍNH NĂNG (TỪ TỔNG THỂ ĐẾN CHI TIẾT NHỎ)
 
 [MÔ-ĐUN 4: TÍNH NĂNG PHỤ TRỢ THỜI GIAN THỰC (REALTIME AUXILIARY FEATURES)]
   4.1. Trạng thái Online / Offline (Presence)
-       - Client gửi định kỳ tín hiệu Heartbeat (Ping/Pong mỗi 15-20 giây).
-       - Redis lưu key: `user:online:{userId}` với thời gian sống (TTL = 30-40 giây).
-       - Khi mở app hoặc rớt mạng: Bắn sự kiện `user:status` (online/offline) qua Redis cho bạn chat.
-       - Hiển thị chấm xanh (Online) hoặc thời gian hoạt động gần nhất (Last seen).
+       - [x] Client gửi định kỳ tín hiệu Heartbeat (Ping/Pong mỗi 15-20 giây).
+       - [x] Redis lưu key: `user:online:{userId}` với thời gian sống (TTL = 30-40 giây).
+       - [x] Khi mở app hoặc rớt mạng: Bắn sự kiện `user:status` (online/offline) qua Redis cho bạn chat.
+       - [x] Hiển thị chấm xanh (Online) hoặc thời gian hoạt động gần nhất (Last seen).
   4.2. Trạng thái đang gõ phím (Typing Indicator)
        - Sự kiện `typing:start`: Kích hoạt khi người dùng gõ vào ô nhập.
        - Sự kiện `typing:stop`: Tự kích hoạt sau 2-3 giây không gõ tiếp hoặc khi đã ấn gửi.
