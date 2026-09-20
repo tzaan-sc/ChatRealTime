@@ -929,6 +929,19 @@ Cập nhật file `frontend/src/App.svelte`:
   }
 </style>
 ```
+### Cách hoạt động của `App.svelte` này như sau:
+
+1. Kiểm tra trạng thái đăng nhập:
+ - Nếu chưa đăng nhập, hiển thị `AuthModal` (cửa sổ Đăng nhập/Đăng ký).
+ - Nếu đã đăng nhập, hiển thị `Sidebar` (cột danh sách bạn bè) và `ChatArea` (khung chat chính).
+
+2. Kết nối WebSocket:
+ - Khi có token, tự động kết nối WebSocket tới `ws://localhost:8080/ws`.
+ - Lắng nghe sự kiện `chat:receive` để nhận tin nhắn real-time.
+
+3. Hiển thị dữ liệu:
+ - Nạp danh sách hội thoại từ REST API.
+ - Hiển thị danh sách bạn bè bên trái và khung chat chính bên phải.
 
 ---
 
