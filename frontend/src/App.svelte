@@ -8,7 +8,10 @@
     onlineUsers,
     setUserOnlineStatus,
     setUserTyping,
-    markMessagesAsReadLocally
+    markMessagesAsReadLocally,
+    updateMessageReactionsLocally,
+    markMessageDeletedLocally,
+    updateMessageEditedLocally
   } from './lib/stores/chat';
   import { playNotificationSound } from './lib/utils/sound';
   import AuthModal from './lib/components/AuthModal.svelte';
@@ -47,6 +50,24 @@
 
       case 'chat:ack':
         appendMessage(payload.message);
+        break;
+
+      case 'chat:reaction_updated':
+        if (payload?.message_id) {
+          updateMessageReactionsLocally(payload.message_id, payload.reactions);
+        }
+        break;
+
+      case 'chat:message_deleted':
+        if (payload?.message_id) {
+          markMessageDeletedLocally(payload.message_id);
+        }
+        break;
+
+      case 'chat:message_edited':
+        if (payload?.message_id) {
+          updateMessageEditedLocally(payload.message_id, payload.content);
+        }
         break;
 
       case 'user:online_list':

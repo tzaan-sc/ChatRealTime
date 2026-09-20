@@ -3,9 +3,24 @@
   import { currentUser } from '../stores/auth';
   import { wsService } from '../services/websocket';
   import { afterUpdate } from 'svelte';
-  import { Send, Paperclip, Mic, Trash2, Check, FileText, Download, Loader2 } from 'lucide-svelte';
+  import {
+    Send,
+    Paperclip,
+    Mic,
+    Trash2,
+    Check,
+    FileText,
+    Download,
+    Loader2,
+    Reply,
+    Edit2,
+    X,
+    Smile
+  } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
+
+  const QUICK_EMOJIS = ['❤️', '😂', '👍', '😢', '🔥', '🚀'];
 
   let inputContent = '';
   let messagesContainer;
@@ -26,21 +41,25 @@
   let audioChunks = [];
   let audioStream = null;
 
+  // Trạng thái Trả lời (Reply) & Chỉnh sửa (Edit)
+  let replyingTo = null; // { message_id, sender_name, content }
+  let editingMessage = null; // message object
+
   // Kiểm tra đối phương có online không
   $: partnerID = $activeConversation?.other_user?.id;
   $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
   $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
 
-  // Tự động cuộn xuống đáy khi có tin nhắn mới
+  // Tự động cuộn xuống đáy khi có tin nhắn mới (chỉ cuộn nếu không đang xem tin cũ)
   afterUpdate(() => {
-    if (messagesContainer) {
+    if (messagesContainer && !editingMessage && !replyingTo) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
   });
 
   // Bắt sự kiện gõ phím để bắn Typing Indicator
   function handleInput() {
-    if (!$activeConversation || !partnerID) return;
+    if (!$activeConversation || !partnerID || editingMessage) return;
 
     if (!isTyping) {
       isTyping = true;
@@ -54,22 +73,45 @@
     }, 2000);
   }
 
-  // Gửi tin nhắn chữ
+  // Gửi tin nhắn chữ hoặc lưu sửa tin nhắn
   function handleSend() {
     if (!inputContent.trim() || !$activeConversation || !partnerID) return;
 
+    // Nếu đang trong chế độ chỉnh sửa tin nhắn
+    if (editingMessage) {
+      wsService.send('chat:edit', {
+        message_id: editingMessage.id,
+        conversation_id: $activeConversation.conversation.custom_id,
+        receiver_id: partnerID,
+        content: inputContent.trim()
+      });
+      cancelEdit();
+      return;
+    }
+
+    // Dừng typing khi gửi tin
     clearTimeout(typingTimeout);
     if (isTyping) {
       isTyping = false;
       wsService.send('typing:stop', { receiver_id: partnerID });
     }
 
-    wsService.send('chat:send', {
+    const payload = {
       receiver_id: partnerID,
       content: inputContent.trim(),
       type: 'text'
-    });
+    };
 
+    if (replyingTo) {
+      payload.reply_to = {
+        message_id: replyingTo.message_id,
+        sender_name: replyingTo.sender_name,
+        content: replyingTo.content
+      };
+      replyingTo = null;
+    }
+
+    wsService.send('chat:send', payload);
     inputContent = '';
   }
 
@@ -112,13 +154,24 @@
 
       const data = await res.json();
 
-      wsService.send('chat:send', {
+      const payload = {
         receiver_id: partnerID,
         content: data.file_url,
         type: data.type,
         file_name: data.file_name,
         file_size: data.file_size
-      });
+      };
+
+      if (replyingTo) {
+        payload.reply_to = {
+          message_id: replyingTo.message_id,
+          sender_name: replyingTo.sender_name,
+          content: replyingTo.content
+        };
+        replyingTo = null;
+      }
+
+      wsService.send('chat:send', payload);
     } catch (err) {
       console.error('Lỗi upload:', err);
       alert('Không thể gửi tệp: ' + err.message);
@@ -209,6 +262,93 @@
     mediaRecorder = null;
   }
 
+  // Chức năng Trả lời (Reply)
+  function startReply(msg) {
+    let snippet = msg.content;
+    if (msg.type === 'image') snippet = '🖼️ [Hình ảnh]';
+    else if (msg.type === 'voice') snippet = '🎙️ [Tin nhắn thoại]';
+    else if (msg.type === 'file') snippet = `📎 [Tệp] ${msg.file_name || ''}`;
+
+    const senderName =
+      msg.sender_id === $currentUser.id
+        ? 'Bạn'
+        : $activeConversation.other_user.display_name || $activeConversation.other_user.username;
+
+    replyingTo = {
+      message_id: msg.id,
+      sender_name: senderName,
+      content: snippet
+    };
+
+    // Đóng chế độ edit nếu đang mở
+    editingMessage = null;
+  }
+
+  function cancelReply() {
+    replyingTo = null;
+  }
+
+  // Chức năng Chỉnh sửa (Edit)
+  function startEdit(msg) {
+    if (msg.type !== 'text' || msg.is_deleted) return;
+    editingMessage = msg;
+    inputContent = msg.content;
+    replyingTo = null;
+  }
+
+  function cancelEdit() {
+    editingMessage = null;
+    inputContent = '';
+  }
+
+  // Chức năng Thu hồi (Delete / Unsend)
+  function deleteMessage(msg) {
+    if (!confirm('Bạn có chắc chắn muốn thu hồi tin nhắn này với mọi người?')) return;
+    wsService.send('chat:delete', {
+      message_id: msg.id,
+      conversation_id: $activeConversation.conversation.custom_id,
+      receiver_id: partnerID
+    });
+  }
+
+  // Thả reaction
+  function toggleReaction(msg, emoji) {
+    if (!msg || !msg.id || !$activeConversation || !partnerID) return;
+    wsService.send('chat:react', {
+      message_id: msg.id,
+      conversation_id: $activeConversation.conversation.custom_id,
+      receiver_id: partnerID,
+      emoji: emoji
+    });
+  }
+
+  // Tính toán nhóm reaction
+  function getGroupedReactions(reactions) {
+    if (!reactions || reactions.length === 0) return [];
+    const counts = {};
+    for (const r of reactions) {
+      if (!counts[r.emoji]) {
+        counts[r.emoji] = { emoji: r.emoji, count: 0, hasMe: false };
+      }
+      counts[r.emoji].count++;
+      if (r.user_id === $currentUser?.id) {
+        counts[r.emoji].hasMe = true;
+      }
+    }
+    return Object.values(counts);
+  }
+
+  // Cuộn tới tin nhắn gốc khi click vào trích dẫn
+  function scrollToMessage(messageId) {
+    if (!messageId) return;
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-target');
+      setTimeout(() => el.classList.remove('highlight-target'), 1800);
+    }
+  }
+
   function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -267,12 +407,71 @@
 
     <!-- Messages Body -->
     <div class="messages-viewport" bind:this={messagesContainer}>
-      {#each $currentMessages as msg}
+      {#each $currentMessages as msg (msg.id)}
         {@const isMe = msg.sender_id === $currentUser.id}
-        <div class="message-row" class:me={isMe}>
+        {@const groupedReactions = getGroupedReactions(msg.reactions)}
+        <div class="message-row" class:me={isMe} id={`msg-${msg.id}`}>
+          <!-- Thanh Công Cụ Tương Tác Nổi (Reaction Bar & Actions Toolbar) -->
+          {#if !msg.is_deleted}
+            <div class="msg-toolbar glass-card" class:toolbar-me={isMe}>
+              <!-- 6 Emoji Phổ Biến -->
+              <div class="quick-emojis">
+                {#each QUICK_EMOJIS as emo}
+                  <button
+                    class="emoji-btn"
+                    on:click={() => toggleReaction(msg, emo)}
+                    title={`Thả ${emo}`}
+                  >
+                    {emo}
+                  </button>
+                {/each}
+              </div>
+
+              <div class="toolbar-divider"></div>
+
+              <!-- Nút Trả lời -->
+              <button class="tool-btn" on:click={() => startReply(msg)} title="Trả lời tin nhắn">
+                <Reply size={15} />
+              </button>
+
+              <!-- Nút Sửa & Thu hồi (Chỉ hiện với tin của mình) -->
+              {#if isMe}
+                {#if msg.type === 'text'}
+                  <button class="tool-btn" on:click={() => startEdit(msg)} title="Chỉnh sửa">
+                    <Edit2 size={14} />
+                  </button>
+                {/if}
+                <button class="tool-btn danger" on:click={() => deleteMessage(msg)} title="Thu hồi tin nhắn">
+                  <Trash2 size={14} />
+                </button>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Bong Bóng Tin Nhắn Chính -->
           <div class="bubble" class:bubble-me={isMe} class:bubble-other={!isMe}>
-            <!-- Render tuỳ loại tin nhắn -->
-            {#if msg.type === 'image'}
+            <!-- Khung Trích Dẫn Tin Nhắn Cũ (Reply Card) -->
+            {#if msg.reply_to}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <div
+                class="reply-quote"
+                role="button"
+                tabindex="0"
+                on:click={() => scrollToMessage(msg.reply_to.message_id)}
+                title="Bấm để cuộn tới tin gốc"
+              >
+                <span class="quote-sender">{msg.reply_to.sender_name}</span>
+                <span class="quote-text">{msg.reply_to.content}</span>
+              </div>
+            {/if}
+
+            <!-- Nội dung tin nhắn theo trạng thái / loại -->
+            {#if msg.is_deleted}
+              <div class="deleted-msg">
+                <span class="deleted-icon">🚫</span>
+                <em>Tin nhắn đã được thu hồi</em>
+              </div>
+            {:else if msg.type === 'image'}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <div
                 class="image-bubble"
@@ -310,16 +509,37 @@
               <p class="text">{msg.content}</p>
             {/if}
 
+            <!-- Thông Tin Phụ: Giờ, Đã sửa, Tích đọc -->
             <div class="msg-meta">
+              {#if msg.is_edited && !msg.is_deleted}
+                <span class="edited-tag" title="Tin nhắn đã qua chỉnh sửa">(đã sửa)</span>
+              {/if}
               <span class="timestamp">
                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              {#if isMe}
+              {#if isMe && !msg.is_deleted}
                 <span class="receipt-icon" class:seen={msg.is_read} title={msg.is_read ? 'Đã xem' : 'Đã gửi'}>
                   {msg.is_read ? '✓✓' : '✓'}
                 </span>
               {/if}
             </div>
+
+            <!-- Gom Nhóm Reaction Dưới Bong Bóng -->
+            {#if groupedReactions.length > 0 && !msg.is_deleted}
+              <div class="reactions-badge-container">
+                {#each groupedReactions as r}
+                  <button
+                    class="reaction-pill"
+                    class:reacted-by-me={r.hasMe}
+                    on:click={() => toggleReaction(msg, r.emoji)}
+                    title={r.hasMe ? 'Bấm để hủy reaction' : 'Bấm để thả cùng reaction'}
+                  >
+                    <span class="pill-emoji">{r.emoji}</span>
+                    <span class="pill-count">{r.count}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
         </div>
       {/each}
@@ -344,7 +564,7 @@
       </div>
     {/if}
 
-    <!-- Input Footer -->
+    <!-- Input Footer & Action Preview Bar -->
     <div class="chat-footer glass-card">
       <input
         type="file"
@@ -352,6 +572,38 @@
         on:change={handleFileInputChange}
         style="display: none;"
       />
+
+      <!-- Thanh Banner Xem Trước Khi Đang Trả Lời (Reply Bar) -->
+      {#if replyingTo}
+        <div class="context-banner reply-banner">
+          <div class="banner-content">
+            <Reply size={15} class="banner-icon" />
+            <div class="banner-text">
+              <span class="banner-title">Trả lời <strong>{replyingTo.sender_name}</strong></span>
+              <span class="banner-sub">{replyingTo.content}</span>
+            </div>
+          </div>
+          <button class="banner-close" on:click={cancelReply} title="Hủy trả lời">
+            <X size={16} />
+          </button>
+        </div>
+      {/if}
+
+      <!-- Thanh Banner Xem Trước Khi Đang Sửa Tin Nhắn (Edit Bar) -->
+      {#if editingMessage}
+        <div class="context-banner edit-banner">
+          <div class="banner-content">
+            <Edit2 size={15} class="banner-icon" />
+            <div class="banner-text">
+              <span class="banner-title">Đang chỉnh sửa tin nhắn</span>
+              <span class="banner-sub">Nhấn Enter hoặc bấm nút Lưu để hoàn tất</span>
+            </div>
+          </div>
+          <button class="banner-close" on:click={cancelEdit} title="Hủy chỉnh sửa">
+            <X size={16} />
+          </button>
+        </div>
+      {/if}
 
       {#if isRecording}
         <!-- Thanh Ghi Âm Voice Note -->
@@ -373,35 +625,49 @@
       {:else}
         <!-- Khung Soạn Thảo Tin Nhắn Bình Thường -->
         <div class="input-wrapper">
-          <button
-            class="action-icon-btn"
-            on:click={() => fileInput.click()}
-            title="Đính kèm ảnh hoặc tài liệu"
-            disabled={isUploading}
-          >
-            <Paperclip size={19} />
-          </button>
+          {#if !editingMessage}
+            <button
+              class="action-icon-btn"
+              on:click={() => fileInput.click()}
+              title="Đính kèm ảnh hoặc tài liệu"
+              disabled={isUploading}
+            >
+              <Paperclip size={19} />
+            </button>
+          {/if}
 
           <textarea
             rows="1"
-            placeholder="Nhập tin nhắn... hoặc dán ảnh (Ctrl + V)"
+            placeholder={editingMessage ? 'Sửa tin nhắn... (Enter để Lưu)' : 'Nhập tin nhắn... hoặc dán ảnh (Ctrl + V)'}
             bind:value={inputContent}
             on:input={handleInput}
             on:keydown={handleKeyDown}
             disabled={isUploading}
           ></textarea>
 
-          <button
-            class="action-icon-btn mic-btn"
-            on:click={startRecording}
-            title="Ghi âm giọng nói (Voice note)"
-            disabled={isUploading}
-          >
-            <Mic size={19} />
-          </button>
+          {#if !editingMessage}
+            <button
+              class="action-icon-btn mic-btn"
+              on:click={startRecording}
+              title="Ghi âm giọng nói (Voice note)"
+              disabled={isUploading}
+            >
+              <Mic size={19} />
+            </button>
+          {/if}
 
-          <button class="send-btn" on:click={handleSend} disabled={!inputContent.trim() || isUploading}>
-            <Send size={18} />
+          <button
+            class="send-btn"
+            class:edit-save-btn={!!editingMessage}
+            on:click={handleSend}
+            disabled={!inputContent.trim() || isUploading}
+            title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi'}
+          >
+            {#if editingMessage}
+              <Check size={18} />
+            {:else}
+              <Send size={18} />
+            {/if}
           </button>
         </div>
       {/if}
@@ -457,10 +723,97 @@
     padding: 24px 32px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
   }
-  .message-row { display: flex; width: 100%; }
+
+  /* Message Row & Action Toolbar */
+  .message-row {
+    position: relative;
+    display: flex;
+    width: 100%;
+    transition: background 0.3s;
+  }
   .message-row.me { justify-content: flex-end; }
+
+  :global(.highlight-target) {
+    animation: flashBackground 1.8s ease;
+  }
+  @keyframes flashBackground {
+    0%, 100% { background: transparent; }
+    30% { background: rgba(167, 139, 250, 0.22); border-radius: 8px; }
+  }
+
+  .msg-toolbar {
+    position: absolute;
+    top: -34px;
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(18, 22, 38, 0.92);
+    border: 1px solid var(--border-glass);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    z-index: 10;
+  }
+  .message-row:hover .msg-toolbar {
+    display: flex;
+  }
+  .message-row.me .msg-toolbar {
+    right: 0;
+  }
+  .message-row:not(.me) .msg-toolbar {
+    left: 0;
+  }
+
+  .quick-emojis {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .emoji-btn {
+    background: transparent;
+    border: none;
+    font-size: 15px;
+    padding: 2px 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: transform 0.15s;
+  }
+  .emoji-btn:hover {
+    transform: scale(1.3);
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border-glass);
+    margin: 0 4px;
+  }
+
+  .tool-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .tool-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .tool-btn.danger:hover {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.25);
+  }
+
+  /* Bubble Styling */
   .bubble {
     max-width: 65%;
     padding: 10px 14px;
@@ -479,7 +832,50 @@
     border-bottom-left-radius: 4px;
     border: 1px solid var(--border-glass);
   }
+
+  /* Reply Quote Card */
+  .reply-quote {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    border-left: 3px solid #a78bfa;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .reply-quote:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+  .quote-sender {
+    font-size: 11px;
+    font-weight: 600;
+    color: #c4b5fd;
+  }
+  .quote-text {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+  }
+
+  /* Deleted Message */
+  .deleted-msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 2px 0;
+  }
+  .deleted-icon { font-size: 14px; opacity: 0.8; }
+
   .text { font-size: 14px; line-height: 1.5; }
+
   .msg-meta {
     display: flex;
     align-items: center;
@@ -487,9 +883,45 @@
     gap: 6px;
     margin-top: 4px;
   }
+  .edited-tag {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
   .timestamp { font-size: 10px; opacity: 0.75; }
   .receipt-icon { font-size: 11px; font-weight: 700; opacity: 0.6; }
   .receipt-icon.seen { color: #38bdf8; opacity: 1; }
+
+  /* Reaction Badges Container */
+  .reactions-badge-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 11px;
+    cursor: pointer;
+    transition: 0.15s transform, 0.15s background;
+  }
+  .reaction-pill:hover {
+    transform: scale(1.08);
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .reaction-pill.reacted-by-me {
+    background: rgba(167, 139, 250, 0.35);
+    border-color: #a78bfa;
+  }
+  .pill-emoji { font-size: 12px; }
+  .pill-count { font-weight: 600; font-family: monospace; }
 
   /* Media Bubbles */
   .image-bubble {
@@ -605,7 +1037,78 @@
     40% { transform: scale(1); }
   }
 
-  .chat-footer { padding: 14px 24px; border-top: 1px solid var(--border-glass); }
+  /* Footer & Input */
+  .chat-footer {
+    padding: 12px 24px 16px 24px;
+    border-top: 1px solid var(--border-glass);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Context Banner (Reply / Edit Preview) */
+  .context-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    animation: slideDown 0.2s ease;
+  }
+  .reply-banner {
+    background: rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+  }
+  .edit-banner {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+  .banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+  }
+  :global(.banner-icon) {
+    color: #a78bfa;
+    flex-shrink: 0;
+  }
+  .banner-text {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .banner-title {
+    font-size: 12px;
+    color: #e0e7ff;
+  }
+  .banner-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .banner-close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 50%;
+  }
+  .banner-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.15);
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   .input-wrapper {
     display: flex;
     align-items: center;
@@ -665,6 +1168,10 @@
   }
   .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .send-btn:not(:disabled):hover { transform: scale(1.05); }
+
+  .edit-save-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
 
   /* Recording Bar */
   .recording-bar {

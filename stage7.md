@@ -11,26 +11,26 @@ Giai đoạn này sẽ mang lại các tính năng tương tác mượt mà và 
 
 ## 📋 Checklist Tiến Đo Giai Đoạn 7
 
-- [ ] **1. Cập nhật Model & Database Schema trong Backend (Golang):**
-  - [ ] Thêm struct `Reaction` và trường `reactions []Reaction` vào `models.Message`.
-  - [ ] Thêm struct `ReplySnippet` và trường `reply_to *ReplySnippet` vào `models.Message`.
-  - [ ] Thêm các cờ `is_deleted bool` và `is_edited bool` vào `models.Message`.
-- [ ] **2. Cập nhật WebSocket Hub (`backend/internal/websocket/hub.go`):**
-  - [ ] Xử lý event `chat:react`: Cập nhật reaction trong MongoDB $\to$ Publish `chat:reaction_updated` qua Redis.
-  - [ ] Xử lý event `chat:delete`: Đặt `is_deleted = true` trong MongoDB $\to$ Publish `chat:message_deleted`.
-  - [ ] Xử lý event `chat:edit`: Cập nhật `content` mới trong MongoDB $\to$ Publish `chat:message_edited`.
-  - [ ] Hỗ trợ gửi tin nhắn có `reply_to` trong event `chat:send`.
-- [ ] **3. Nâng cấp Store Chat trên Frontend (`frontend/src/lib/stores/chat.js`):**
-  - [ ] Thêm hàm `updateReactionLocally(messageId, userId, emoji)`.
-  - [ ] Thêm hàm `markDeletedLocally(messageId)`.
-  - [ ] Thêm hàm `updateEditedLocally(messageId, newContent)`.
-- [ ] **4. Nâng cấp Giao diện Khung Chat (`frontend/src/lib/components/ChatArea.svelte`):**
-  - [ ] Thanh Quick Reaction Bar hiển thị khi hover chuột vào bong bóng chat.
-  - [ ] Nút Action Menu: Trả lời 💬, Sửa ✏️ (nếu là tin của mình), Thu hồi 🗑️ (nếu là tin của mình).
-  - [ ] Banner trích dẫn phía trên ô gõ text khi đang trong chế độ Reply.
-  - [ ] Banner chỉnh sửa tin nhắn phía trên ô gõ text khi đang sửa tin.
-  - [ ] Hiển thị danh sách Reaction gộp (ví dụ: ❤️ 2, 😂 1) ở góc dưới tin nhắn.
-- [ ] **5. Kiểm thử toàn diện 6 kịch bản tương tác tin nhắn**.
+- [x] **1. Cập nhật Model & Database Schema trong Backend (Golang):**
+  - [x] Thêm struct `Reaction` và trường `reactions []Reaction` vào `models.Message`.
+  - [x] Thêm struct `ReplySnippet` và trường `reply_to *ReplySnippet` vào `models.Message`.
+  - [x] Thêm các cờ `is_deleted bool` và `is_edited bool` vào `models.Message`.
+- [x] **2. Cập nhật WebSocket Hub (`backend/internal/websocket/hub.go`):**
+  - [x] Xử lý event `chat:react`: Cập nhật reaction trong MongoDB $\to$ Publish `chat:reaction_updated` qua Redis.
+  - [x] Xử lý event `chat:delete`: Đặt `is_deleted = true` trong MongoDB $\to$ Publish `chat:message_deleted`.
+  - [x] Xử lý event `chat:edit`: Cập nhật `content` mới trong MongoDB $\to$ Publish `chat:message_edited`.
+  - [x] Hỗ trợ gửi tin nhắn có `reply_to` trong event `chat:send`.
+- [x] **3. Nâng cấp Store Chat trên Frontend (`frontend/src/lib/stores/chat.js`):**
+  - [x] Thêm hàm `updateReactionLocally(messageId, userId, emoji)`.
+  - [x] Thêm hàm `markDeletedLocally(messageId)`.
+  - [x] Thêm hàm `updateEditedLocally(messageId, newContent)`.
+- [x] **4. Nâng cấp Giao diện Khung Chat (`frontend/src/lib/components/ChatArea.svelte`):**
+  - [x] Thanh Quick Reaction Bar hiển thị khi hover chuột vào bong bóng chat.
+  - [x] Nút Action Menu: Trả lời 💬, Sửa ✏️ (nếu là tin của mình), Thu hồi 🗑️ (nếu là tin của mình).
+  - [x] Banner trích dẫn phía trên ô gõ text khi đang trong chế độ Reply.
+  - [x] Banner chỉnh sửa tin nhắn phía trên ô gõ text khi đang sửa tin.
+  - [x] Hiển thị danh sách Reaction gộp (ví dụ: ❤️ 2, 😂 1) ở góc dưới tin nhắn.
+- [x] **5. Kiểm thử toàn diện 6 kịch bản tương tác tin nhắn**.
 
 ---
 

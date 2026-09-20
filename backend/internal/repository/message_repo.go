@@ -79,3 +79,79 @@ func (r *MessageRepository) MarkAsRead(ctx context.Context, conversationID, rece
 	_, err := r.collection.UpdateMany(ctx, filter, update)
 	return err
 }
+
+// GetByID lấy thông tin 1 tin nhắn theo ObjectID
+func (r *MessageRepository) GetByID(ctx context.Context, messageID primitive.ObjectID) (*models.Message, error) {
+	var msg models.Message
+	err := r.collection.FindOne(ctx, bson.M{"_id": messageID}).Decode(&msg)
+	return &msg, err
+}
+
+// ToggleReaction thêm, đổi hoặc hủy reaction của 1 user trên tin nhắn
+func (r *MessageRepository) ToggleReaction(ctx context.Context, messageID primitive.ObjectID, userID, emoji string) ([]models.Reaction, error) {
+	var msg models.Message
+	if err := r.collection.FindOne(ctx, bson.M{"_id": messageID}).Decode(&msg); err != nil {
+		return nil, err
+	}
+
+	found := false
+	newReactions := make([]models.Reaction, 0)
+	for _, react := range msg.Reactions {
+		if react.UserID == userID {
+			found = true
+			if react.Emoji != emoji {
+				// Đổi sang biểu tượng cảm xúc mới
+				newReactions = append(newReactions, models.Reaction{UserID: userID, Emoji: emoji})
+			}
+			// Nếu bấm lại cùng emoji -> Xóa reaction (toggle off)
+		} else {
+			newReactions = append(newReactions, react)
+		}
+	}
+
+	if !found {
+		newReactions = append(newReactions, models.Reaction{UserID: userID, Emoji: emoji})
+	}
+
+	update := bson.M{"$set": bson.M{"reactions": newReactions}}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": messageID}, update)
+	return newReactions, err
+}
+
+// DeleteMessage thu hồi / xóa tin nhắn của người gửi
+func (r *MessageRepository) DeleteMessage(ctx context.Context, messageID primitive.ObjectID, senderID string) error {
+	filter := bson.M{
+		"_id":       messageID,
+		"sender_id": senderID,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"is_deleted": true,
+			"content":    "",
+			"file_name":  "",
+			"file_size":  0,
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// EditMessage chỉnh sửa nội dung tin nhắn của người gửi
+func (r *MessageRepository) EditMessage(ctx context.Context, messageID primitive.ObjectID, senderID, newContent string) error {
+	filter := bson.M{
+		"_id":        messageID,
+		"sender_id":  senderID,
+		"is_deleted": false,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"content":    newContent,
+			"is_edited":  true,
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+

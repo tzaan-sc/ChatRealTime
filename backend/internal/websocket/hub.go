@@ -13,6 +13,7 @@ import (
 	"chatrealtime-backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Hub struct {
@@ -178,6 +179,15 @@ func (h *Hub) HandleClientEvent(client *Client, event models.WSEvent) {
 	case "chat:send":
 		h.handleSendMessage(client, event.Payload)
 
+	case "chat:react":
+		h.handleReact(client, event.Payload)
+
+	case "chat:delete":
+		h.handleDeleteMessage(client, event.Payload)
+
+	case "chat:edit":
+		h.handleEditMessage(client, event.Payload)
+
 	case "heartbeat":
 		// Gia hạn TTL 30 giây trong Redis
 		ctx := context.Background()
@@ -231,9 +241,11 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 		Type:           msgType,
 		FileName:       req.FileName,
 		FileSize:       req.FileSize,
+		ReplyTo:        req.ReplyTo,
 		IsRead:         false,
 		CreatedAt:      time.Now(),
 	}
+
 
 	if err := h.msgRepo.Create(ctx, newMsg); err != nil {
 		log.Printf("Lỗi lưu tin nhắn vào MongoDB: %v", err)
@@ -338,3 +350,141 @@ func (h *Hub) handleMarkAsRead(client *Client, rawPayload interface{}) {
 		h.redisClient.Publish(ctx, partnerChannel, string(bytes))
 	}
 }
+
+// handleReact xử lý thả hoặc hủy biểu tượng cảm xúc
+func (h *Hub) handleReact(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req struct {
+		MessageID      string `json:"message_id"`
+		ConversationID string `json:"conversation_id"`
+		ReceiverID     string `json:"receiver_id"`
+		Emoji          string `json:"emoji"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+	msgOID, err := primitive.ObjectIDFromHex(req.MessageID)
+	if err != nil {
+		return
+	}
+
+	ctx := context.Background()
+	reactions, err := h.msgRepo.ToggleReaction(ctx, msgOID, client.UserID, req.Emoji)
+	if err != nil {
+		log.Printf("Lỗi ToggleReaction: %v", err)
+		return
+	}
+
+	outEvent := models.WSEvent{
+		Event: "chat:reaction_updated",
+		Payload: map[string]interface{}{
+			"message_id":      req.MessageID,
+			"conversation_id": req.ConversationID,
+			"reactions":       reactions,
+		},
+	}
+	outBytes, _ := json.Marshal(outEvent)
+
+	// Gửi cho người nhận qua Redis
+	if req.ReceiverID != "" {
+		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
+		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
+	}
+
+	// Gửi cho người gửi
+	client.Send <- outBytes
+}
+
+// handleDeleteMessage xử lý thu hồi tin nhắn
+func (h *Hub) handleDeleteMessage(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req struct {
+		MessageID      string `json:"message_id"`
+		ConversationID string `json:"conversation_id"`
+		ReceiverID     string `json:"receiver_id"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+	msgOID, err := primitive.ObjectIDFromHex(req.MessageID)
+	if err != nil {
+		return
+	}
+
+	ctx := context.Background()
+	if err := h.msgRepo.DeleteMessage(ctx, msgOID, client.UserID); err != nil {
+		log.Printf("Lỗi DeleteMessage: %v", err)
+		return
+	}
+
+	outEvent := models.WSEvent{
+		Event: "chat:message_deleted",
+		Payload: map[string]interface{}{
+			"message_id":      req.MessageID,
+			"conversation_id": req.ConversationID,
+		},
+	}
+	outBytes, _ := json.Marshal(outEvent)
+
+	if req.ReceiverID != "" {
+		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
+		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
+	}
+
+	client.Send <- outBytes
+}
+
+// handleEditMessage xử lý chỉnh sửa nội dung tin nhắn
+func (h *Hub) handleEditMessage(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req struct {
+		MessageID      string `json:"message_id"`
+		ConversationID string `json:"conversation_id"`
+		ReceiverID     string `json:"receiver_id"`
+		Content        string `json:"content"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+	cleanContent := strings.TrimSpace(req.Content)
+	if cleanContent == "" {
+		return
+	}
+	msgOID, err := primitive.ObjectIDFromHex(req.MessageID)
+	if err != nil {
+		return
+	}
+
+	ctx := context.Background()
+	if err := h.msgRepo.EditMessage(ctx, msgOID, client.UserID, cleanContent); err != nil {
+		log.Printf("Lỗi EditMessage: %v", err)
+		return
+	}
+
+	outEvent := models.WSEvent{
+		Event: "chat:message_edited",
+		Payload: map[string]interface{}{
+			"message_id":      req.MessageID,
+			"conversation_id": req.ConversationID,
+			"content":         cleanContent,
+		},
+	}
+	outBytes, _ := json.Marshal(outEvent)
+
+	if req.ReceiverID != "" {
+		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
+		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
+	}
+
+	client.Send <- outBytes
+}
+

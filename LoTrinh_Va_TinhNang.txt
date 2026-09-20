@@ -41,11 +41,11 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Gửi tệp đính kèm tài liệu (Word, Excel, PDF, Zip...) kèm kích thước dung lượng và nút tải về.
   - [x] Tin nhắn thoại (Voice Note): Thu âm trực tiếp bằng Micro trên trình duyệt và phát audio player.
 
-[MÔ-ĐUN 5: TƯƠNG TÁC TIN NHẮN (INTERACTIONS & ACTIONS)]
-  - [ ] Quick Reaction Bar: Thả cảm xúc emoji nhanh (❤️, 😂, 👍, 😢, 🔥, 🚀).
-  - [ ] Trả lời / Trích dẫn (Reply / Quote): Trích dẫn lại tin nhắn cũ kèm cuộn mượt tới vị trí tin gốc.
-  - [ ] Thu hồi tin nhắn (Unsend / Delete for Everyone): Thay thế tin nhắn bằng thông báo đã thu hồi.
-  - [ ] Chỉnh sửa tin nhắn (Edit Message): Cho phép sửa chính tả kèm nhãn `(đã sửa)`.
+[MÔ-ĐUN 5: TƯƠNG TÁC TIN NHẮN (INTERACTIONS & ACTIONS)] [ĐÃ HOÀN THÀNH]
+  - [x] Quick Reaction Bar: Thả cảm xúc emoji nhanh (❤️, 😂, 👍, 😢, 🔥, 🚀).
+  - [x] Trả lời / Trích dẫn (Reply / Quote): Trích dẫn lại tin nhắn cũ kèm cuộn mượt tới vị trí tin gốc.
+  - [x] Thu hồi tin nhắn (Unsend / Delete for Everyone): Thay thế tin nhắn bằng thông báo đã thu hồi.
+  - [x] Chỉnh sửa tin nhắn (Edit Message): Cho phép sửa chính tả kèm nhãn `(đã sửa)`.
 
 [MÔ-ĐUN 6: TRÒ CHUYỆN NHÓM (GROUP CHAT)]
   - [ ] Tạo phòng chat nhóm, mời bạn bè vào nhóm.
@@ -109,13 +109,13 @@ GIAI ĐOẠN 6: TIN NHẮN ĐA PHƯƠNG TIỆN (MEDIA & VOICE NOTES) [ĐÃ HOÀN
 [x] 6.4. Hỗ trợ dán ảnh trực tiếp từ bộ nhớ tạm (`Ctrl + V`).
 [x] 6.5. Ghi âm tin nhắn thoại (Voice Note) bằng Web Audio API & MediaRecorder.
 
-GIAI ĐOẠN 7: TƯƠNG TÁC TIN NHẮN (REACTIONS, REPLY, DELETE, EDIT)
+GIAI ĐOẠN 7: TƯƠNG TÁC TIN NHẮN (REACTIONS, REPLY, DELETE, EDIT) [ĐÃ HOÀN THÀNH]
 -> File tài liệu: stage7.md
-[ ] 7.1. Cập nhật Model Message: `reactions`, `reply_to`, `is_deleted`, `is_edited`.
-[ ] 7.2. WebSocket Hub xử lý `chat:react`, `chat:delete`, `chat:edit`.
-[ ] 7.3. Thanh Quick Reaction Bar và Action Menu khi hover vào tin nhắn.
-[ ] 7.4. Khung trích dẫn tin nhắn cũ khi bấm trả lời (Reply).
-[ ] 7.5. Chế độ sửa tin nhắn và hiển thị tin nhắn đã thu hồi.
+[x] 7.1. Cập nhật Model Message: `reactions`, `reply_to`, `is_deleted`, `is_edited`.
+[x] 7.2. WebSocket Hub xử lý `chat:react`, `chat:delete`, `chat:edit`.
+[x] 7.3. Thanh Quick Reaction Bar và Action Menu khi hover vào tin nhắn.
+[x] 7.4. Khung trích dẫn tin nhắn cũ khi bấm trả lời (Reply).
+[x] 7.5. Chế độ sửa tin nhắn và hiển thị tin nhắn đã thu hồi.
 
 GIAI ĐOẠN 8: TRÒ CHUYỆN NHÓM (GROUP CHAT)
 -> File tài liệu: stage8.md

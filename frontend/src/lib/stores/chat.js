@@ -84,3 +84,40 @@ export function setUserTyping(userID, isTyping) {
     return next;
   });
 }
+
+// Cập nhật reactions của tin nhắn cục bộ
+export function updateMessageReactionsLocally(messageID, reactions) {
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.id === messageID) {
+        return { ...m, reactions: reactions || [] };
+      }
+      return m;
+    })
+  );
+}
+
+// Đánh dấu tin nhắn đã thu hồi cục bộ
+export function markMessageDeletedLocally(messageID) {
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.id === messageID) {
+        return { ...m, is_deleted: true, content: '', file_name: '', file_size: 0 };
+      }
+      return m;
+    })
+  );
+}
+
+// Cập nhật nội dung tin nhắn đã chỉnh sửa cục bộ
+export function updateMessageEditedLocally(messageID, newContent) {
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.id === messageID) {
+        return { ...m, content: newContent, is_edited: true };
+      }
+      return m;
+    })
+  );
+}
+
