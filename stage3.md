@@ -26,7 +26,7 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng một hệ
   - `internal/handlers/chat_handler.go`
   - `internal/handlers/ws_handler.go`
 - [x] **6. Cập nhật Router trong `cmd/server/main.go`**
-- [ ] **7. Kiểm thử WebSocket & Chat 1-1 qua Postman / Browser Console**
+- [x] **7. Kiểm thử WebSocket & Chat 1-1 qua Postman / Browser Console**
 
 ---
 

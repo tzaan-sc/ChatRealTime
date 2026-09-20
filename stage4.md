@@ -5,6 +5,17 @@ Tài liệu này sẽ hướng dẫn bạn từng bước xây dựng giao diệ
 
 ---
 
+## Mục lục
+1. [Bước 1: Khởi tạo Project Svelte với Vite](#buoc-1-khoi-tao-project-svelte)
+2. [Bước 2: Xây dựng Hệ thống Giao diện & Design System (`app.css`)](#buoc-2-he-thong-giao-dien)
+3. [Bước 3: Tầng Services & Svelte Stores](#buoc-3-services--stores)
+4. [Bước 4: Xây dựng các Components Giao diện](#buoc-4-components-giao-dien)
+5. [Bước 5: Lắp ráp Ứng dụng chính `App.svelte`](#buoc-5-lap-rap-app-svelte)
+6. [Bước 6: Chạy thử nghiệm và kết nối với Backend](#buoc-6-chay-thu-nghiem)
+7. [Các lỗi thường gặp và cách xử lý](#cac-loi-thuong-gap-va-cach-xu-ly)
+
+---
+
 ## 📋 Checklist Tiến Độ Giai Đoạn 4
 
 - [ ] **1. Khởi tạo dự án Frontend bằng Vite + Svelte:**
