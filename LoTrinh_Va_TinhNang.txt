@@ -47,11 +47,11 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Thu hồi tin nhắn (Unsend / Delete for Everyone): Thay thế tin nhắn bằng thông báo đã thu hồi.
   - [x] Chỉnh sửa tin nhắn (Edit Message): Cho phép sửa chính tả kèm nhãn `(đã sửa)`.
 
-[MÔ-ĐUN 6: TRÒ CHUYỆN NHÓM (GROUP CHAT)]
-  - [ ] Tạo phòng chat nhóm, mời bạn bè vào nhóm.
-  - [ ] Phân quyền Admin / Member: Đổi tên nhóm, thêm thành viên, xóa thành viên hoặc rời nhóm.
-  - [ ] Tối ưu hóa kênh Redis Pub/Sub cho nhóm: `group:chat:{groupId}` broadcast 1 lần tới tất cả thành viên.
-  - [ ] Bong bóng chat nhóm hiển thị tên người gửi và avatar riêng biệt.
+[MÔ-ĐUN 6: TRÒ CHUYỆN NHÓM (GROUP CHAT)] [ĐÃ HOÀN THÀNH]
+  - [x] Tạo phòng chat nhóm, mời bạn bè vào nhóm.
+  - [x] Phân quyền Admin / Member: Đổi tên nhóm, thêm thành viên, xóa thành viên hoặc rời nhóm.
+  - [x] Tối ưu hóa kênh Redis Pub/Sub cho nhóm: `group:chat:{groupId}` broadcast 1 lần tới tất cả thành viên.
+  - [x] Bong bóng chat nhóm hiển thị tên người gửi và avatar riêng biệt.
 
 [MÔ-ĐUN 7: CUỘC GỌI THOẠI & VIDEO CALL REALTIME (WEBRTC)]
   - [ ] Trao đổi tín hiệu báo hiệu (Signaling: Offer, Answer, ICE Candidates) qua WebSocket Hub hiện có.
@@ -117,11 +117,11 @@ GIAI ĐOẠN 7: TƯƠNG TÁC TIN NHẮN (REACTIONS, REPLY, DELETE, EDIT) [ĐÃ H
 [x] 7.4. Khung trích dẫn tin nhắn cũ khi bấm trả lời (Reply).
 [x] 7.5. Chế độ sửa tin nhắn và hiển thị tin nhắn đã thu hồi.
 
-GIAI ĐOẠN 8: TRÒ CHUYỆN NHÓM (GROUP CHAT)
+GIAI ĐOẠN 8: TRÒ CHUYỆN NHÓM (GROUP CHAT) [ĐÃ HOÀN THÀNH]
 -> File tài liệu: stage8.md
-[ ] 8.1. Model Group MongoDB & REST API tạo nhóm, quản lý thành viên.
-[ ] 8.2. Redis Pub/Sub channel nhóm `group:chat:{groupId}`.
-[ ] 8.3. Giao diện tạo nhóm, danh sách nhóm và bong bóng chat hiển thị tên/avatar người gửi.
+[x] 8.1. Model Group MongoDB & REST API tạo nhóm, quản lý thành viên.
+[x] 8.2. Redis Pub/Sub channel nhóm `group:chat:{groupId}`.
+[x] 8.3. Giao diện tạo nhóm, danh sách nhóm và bong bóng chat hiển thị tên/avatar người gửi.
 
 GIAI ĐOẠN 9: CUỘC GỌI THOẠI & VIDEO CALL 1-1 (WEBRTC)
 -> File tài liệu: stage9.md

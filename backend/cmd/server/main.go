@@ -29,18 +29,21 @@ func main() {
 	userRepo := repository.NewUserRepository(database.MongoDB)
 	msgRepo := repository.NewMessageRepository(database.MongoDB)
 	convRepo := repository.NewConversationRepository(database.MongoDB)
+	groupRepo := repository.NewGroupRepository(database.MongoDB)
 
 	// 4. Khởi tạo WebSocket Hub và chạy ngầm
-	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo)
+	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo, groupRepo, userRepo)
 	go hub.Run()
 
 	// 5. Khởi tạo Services
 	authService := service.NewAuthService(userRepo)
 	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
+	groupService := service.NewGroupService(groupRepo, userRepo)
 
 	// 6. Khởi tạo Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	chatHandler := handlers.NewChatHandler(chatService)
+	groupHandler := handlers.NewGroupHandler(groupService, msgRepo)
 	wsHandler := handlers.NewWSHandler(hub)
 	uploadHandler := handlers.NewUploadHandler()
 
@@ -80,7 +83,19 @@ func main() {
 			chat.POST("/messages/:conversation_id/read", chatHandler.MarkAsRead)
 			chat.GET("/users", chatHandler.GetUsers)
 		}
+
+		// Group Routes (Cần xác thực Token)
+		groups := api.Group("/groups", middleware.AuthMiddleware())
+		{
+			groups.POST("", groupHandler.Create)
+			groups.GET("", groupHandler.GetMyGroups)
+			groups.GET("/:id", groupHandler.GetDetails)
+			groups.POST("/:id/members", groupHandler.AddMembers)
+			groups.DELETE("/:id/members/:userId", groupHandler.RemoveMember)
+			groups.GET("/:id/messages", groupHandler.GetGroupMessages)
+		}
 	}
+
 
 
 	port := os.Getenv("PORT")

@@ -22,9 +22,12 @@ type ReplySnippet struct {
 // Message đại diện cho 1 tin nhắn trong collection "messages"
 type Message struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ConversationID string             `bson:"conversation_id" json:"conversation_id"`
+	ConversationID string             `bson:"conversation_id,omitempty" json:"conversation_id,omitempty"` // Dùng cho chat 1-1
+	GroupID        string             `bson:"group_id,omitempty" json:"group_id,omitempty"`               // Dùng cho chat nhóm
 	SenderID       string             `bson:"sender_id" json:"sender_id"`
-	ReceiverID     string             `bson:"receiver_id" json:"receiver_id"`
+	SenderName     string             `bson:"sender_name,omitempty" json:"sender_name,omitempty"`
+	SenderAvatar   string             `bson:"sender_avatar,omitempty" json:"sender_avatar,omitempty"`
+	ReceiverID     string             `bson:"receiver_id,omitempty" json:"receiver_id,omitempty"`
 	Content        string             `bson:"content" json:"content"` // Chứa text hoặc URL tĩnh của ảnh/file/voice
 	Type           string             `bson:"type" json:"type"`       // "text", "image", "file", "voice"
 	FileName       string             `bson:"file_name,omitempty" json:"file_name,omitempty"`
@@ -40,7 +43,8 @@ type Message struct {
 
 // SendMessageRequest DTO gửi từ client
 type SendMessageRequest struct {
-	ReceiverID string        `json:"receiver_id" binding:"required"`
+	ReceiverID string        `json:"receiver_id,omitempty"`
+	GroupID    string        `json:"group_id,omitempty"`
 	Content    string        `json:"content" binding:"required"`
 	Type       string        `json:"type"` // "text", "image", "file", "voice"
 	FileName   string        `json:"file_name,omitempty"`

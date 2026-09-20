@@ -58,6 +58,32 @@ func (r *MessageRepository) GetByConversation(ctx context.Context, conversationI
 	return messages, nil
 }
 
+// GetByGroup lấy lịch sử tin nhắn của một nhóm chat
+func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, limit int64, offset int64) ([]models.Message, error) {
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: -1}}).
+		SetLimit(limit).
+		SetSkip(offset)
+
+	cursor, err := r.collection.Find(ctx, bson.M{"group_id": groupID}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []models.Message
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	return messages, nil
+}
+
+
 // CountUnread đếm số tin nhắn chưa đọc của một người trong 1 cuộc trò chuyện
 func (r *MessageRepository) CountUnread(ctx context.Context, conversationID, receiverID string) (int64, error) {
 	filter := bson.M{

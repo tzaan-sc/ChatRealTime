@@ -15,24 +15,26 @@ Giai đoạn này sẽ mở rộng hệ thống từ nhắn tin 1-1 sang **Trò 
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 8
 
-- [ ] **1. Thiết kế Model & Cơ sở dữ liệu MongoDB:**
-  - [ ] Collection `groups`: `id`, `name`, `avatar`, `creator_id`, `admin_ids`, `member_ids`, `created_at`.
-  - [ ] Bổ sung trường `group_id` vào Collection `messages` (phân biệt tin 1-1 và tin nhóm).
-- [ ] **2. Xây dựng REST API Quản lý Nhóm (Golang):**
-  - [ ] `POST /api/groups`: Tạo nhóm mới kèm danh sách thành viên ban đầu.
-  - [ ] `GET /api/groups`: Lấy danh sách các nhóm mà người dùng hiện tại đang tham gia.
-  - [ ] `GET /api/groups/:id`: Lấy chi tiết nhóm và danh sách thành viên.
-  - [ ] `POST /api/groups/:id/members`: Thêm thành viên mới (chỉ Admin).
-  - [ ] `DELETE /api/groups/:id/members/:userId`: Xóa thành viên hoặc rời nhóm.
-- [ ] **3. Nâng cấp WebSocket Hub cho Group Chat:**
-  - [ ] Khi client kết nối: Server tự động subscribe vào các channel Redis `group:chat:{groupId}` của tất cả các nhóm mà user này tham gia.
-  - [ ] Xử lý event gửi tin nhắn nhóm `group:send` $\to$ Lưu DB với `group_id` $\to$ Publish vào `group:chat:{groupId}`.
-- [ ] **4. Nâng cấp Frontend Svelte 5:**
-  - [ ] Modal tạo nhóm mới (Form nhập tên nhóm + Checkbox chọn bạn bè).
-  - [ ] Danh sách hội thoại Sidebar: Tab "Cá nhân" & Tab "Nhóm" (hoặc gộp chung với icon nhóm).
-  - [ ] Khung chat `ChatArea.svelte`: Hiển thị tên người gửi trên từng bong bóng chat và thanh tiêu đề nhóm.
-  - [ ] Modal xem danh sách thành viên & Thêm người vào nhóm.
-- [ ] **5. Kiểm thử toàn diện 6 kịch bản chat nhóm**.
+- [x] **1. Thiết kế Model & Cơ sở dữ liệu MongoDB:**
+  - [x] Collection `groups`: `id`, `name`, `avatar`, `creator_id`, `admin_ids`, `member_ids`, `created_at`.
+  - [x] Bổ sung trường `group_id`, `sender_name`, `sender_avatar` vào Collection `messages` (phân biệt tin 1-1 và tin nhóm).
+- [x] **2. Xây dựng REST API Quản lý Nhóm (Golang):**
+  - [x] `POST /api/groups`: Tạo nhóm mới kèm danh sách thành viên ban đầu.
+  - [x] `GET /api/groups`: Lấy danh sách các nhóm mà người dùng hiện tại đang tham gia.
+  - [x] `GET /api/groups/:id`: Lấy chi tiết nhóm và danh sách thành viên.
+  - [x] `POST /api/groups/:id/members`: Thêm thành viên mới (chỉ Admin).
+  - [x] `DELETE /api/groups/:id/members/:userId`: Xóa thành viên hoặc rời nhóm.
+  - [x] `GET /api/groups/:id/messages`: Tải lịch sử tin nhắn của nhóm.
+- [x] **3. Nâng cấp WebSocket Hub cho Group Chat:**
+  - [x] Khi client kết nối: Server tự động subscribe vào các channel Redis `group:chat:{groupId}` của tất cả các nhóm mà user này tham gia.
+  - [x] Xử lý event gửi tin nhắn nhóm `group:send` $\to$ Lưu DB với `group_id` $\to$ Publish vào `group:chat:{groupId}`.
+  - [x] Hỗ trợ reaction, edit, delete trên tin nhắn nhóm theo `group_id`.
+- [x] **4. Nâng cấp Frontend Svelte 5:**
+  - [x] Modal tạo nhóm mới (`CreateGroupModal.svelte` Form nhập tên nhóm + Checkbox chọn bạn bè).
+  - [x] Danh sách hội thoại Sidebar: Tab "Cá nhân" & Tab "Nhóm", nút "+ Tạo nhóm".
+  - [x] Khung chat `ChatArea.svelte`: Hiển thị tên & avatar người gửi trên từng bong bóng chat và thanh tiêu đề nhóm.
+  - [x] Modal xem danh sách thành viên & Thêm người vào nhóm (`GroupMembersModal.svelte`).
+- [x] **5. Kiểm thử toàn diện các luồng chat nhóm**.
 
 ---
 

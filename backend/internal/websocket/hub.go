@@ -24,9 +24,11 @@ type Hub struct {
 	redisClient *redis.Client
 	msgRepo     *repository.MessageRepository
 	convRepo    *repository.ConversationRepository
+	groupRepo   *repository.GroupRepository
+	userRepo    *repository.UserRepository
 }
 
-func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, convRepo *repository.ConversationRepository) *Hub {
+func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, convRepo *repository.ConversationRepository, groupRepo *repository.GroupRepository, userRepo *repository.UserRepository) *Hub {
 	return &Hub{
 		clients:     make(map[string]*Client),
 		register:    make(chan *Client),
@@ -34,6 +36,8 @@ func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, co
 		redisClient: redisClient,
 		msgRepo:     msgRepo,
 		convRepo:    convRepo,
+		groupRepo:   groupRepo,
+		userRepo:    userRepo,
 	}
 }
 
@@ -83,6 +87,9 @@ func (h *Hub) Run() {
 			// Lắng nghe kênh riêng của user
 			go h.subscribeUserChannel(client.UserID)
 
+			// Lắng nghe các kênh nhóm của user
+			go h.subscribeUserGroups(client)
+
 			// Đánh dấu online và thông báo cho mọi người
 			h.BroadcastUserStatus(client.UserID, true)
 
@@ -129,6 +136,49 @@ func (h *Hub) sendInitialOnlineList(client *Client) {
 	}
 	bytes, _ := json.Marshal(event)
 	client.Send <- bytes
+}
+
+// subscribeUserGroups đăng ký lắng nghe các kênh nhóm mà client tham gia
+func (h *Hub) subscribeUserGroups(client *Client) {
+	if h.groupRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	userOID, err := primitive.ObjectIDFromHex(client.UserID)
+	if err != nil {
+		return
+	}
+	groups, err := h.groupRepo.GetUserGroups(ctx, userOID)
+	if err != nil {
+		return
+	}
+	for _, g := range groups {
+		go h.subscribeGroupChannel(g.ID.Hex(), client.UserID)
+	}
+}
+
+// subscribeGroupChannel lắng nghe Redis Channel của một nhóm
+func (h *Hub) subscribeGroupChannel(groupID, userID string) {
+	channelName := fmt.Sprintf("group:chat:%s", groupID)
+	pubsub := h.redisClient.Subscribe(context.Background(), channelName)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for msg := range ch {
+		h.mutex.RLock()
+		client, isOnline := h.clients[userID]
+		h.mutex.RUnlock()
+
+		if isOnline {
+			select {
+			case client.Send <- []byte(msg.Payload):
+			default:
+				h.Unregister <- client
+			}
+		} else {
+			break
+		}
+	}
 }
 
 // subscribeGlobalEvents lắng nghe các event phát cho toàn hệ thống
@@ -178,6 +228,10 @@ func (h *Hub) HandleClientEvent(client *Client, event models.WSEvent) {
 	switch event.Event {
 	case "chat:send":
 		h.handleSendMessage(client, event.Payload)
+
+	case "group:send":
+		h.handleSendGroupMessage(client, event.Payload)
+
 
 	case "chat:react":
 		h.handleReact(client, event.Payload)
@@ -360,6 +414,7 @@ func (h *Hub) handleReact(client *Client, rawPayload interface{}) {
 	var req struct {
 		MessageID      string `json:"message_id"`
 		ConversationID string `json:"conversation_id"`
+		GroupID        string `json:"group_id"`
 		ReceiverID     string `json:"receiver_id"`
 		Emoji          string `json:"emoji"`
 	}
@@ -383,13 +438,17 @@ func (h *Hub) handleReact(client *Client, rawPayload interface{}) {
 		Payload: map[string]interface{}{
 			"message_id":      req.MessageID,
 			"conversation_id": req.ConversationID,
+			"group_id":        req.GroupID,
 			"reactions":       reactions,
 		},
 	}
 	outBytes, _ := json.Marshal(outEvent)
 
-	// Gửi cho người nhận qua Redis
-	if req.ReceiverID != "" {
+	// Gửi cho nhóm hoặc người nhận qua Redis
+	if req.GroupID != "" {
+		groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+		h.redisClient.Publish(ctx, groupChannel, string(outBytes))
+	} else if req.ReceiverID != "" {
 		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
 		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
 	}
@@ -407,6 +466,7 @@ func (h *Hub) handleDeleteMessage(client *Client, rawPayload interface{}) {
 	var req struct {
 		MessageID      string `json:"message_id"`
 		ConversationID string `json:"conversation_id"`
+		GroupID        string `json:"group_id"`
 		ReceiverID     string `json:"receiver_id"`
 	}
 	if err := json.Unmarshal(payloadBytes, &req); err != nil {
@@ -428,11 +488,15 @@ func (h *Hub) handleDeleteMessage(client *Client, rawPayload interface{}) {
 		Payload: map[string]interface{}{
 			"message_id":      req.MessageID,
 			"conversation_id": req.ConversationID,
+			"group_id":        req.GroupID,
 		},
 	}
 	outBytes, _ := json.Marshal(outEvent)
 
-	if req.ReceiverID != "" {
+	if req.GroupID != "" {
+		groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+		h.redisClient.Publish(ctx, groupChannel, string(outBytes))
+	} else if req.ReceiverID != "" {
 		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
 		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
 	}
@@ -449,6 +513,7 @@ func (h *Hub) handleEditMessage(client *Client, rawPayload interface{}) {
 	var req struct {
 		MessageID      string `json:"message_id"`
 		ConversationID string `json:"conversation_id"`
+		GroupID        string `json:"group_id"`
 		ReceiverID     string `json:"receiver_id"`
 		Content        string `json:"content"`
 	}
@@ -475,16 +540,112 @@ func (h *Hub) handleEditMessage(client *Client, rawPayload interface{}) {
 		Payload: map[string]interface{}{
 			"message_id":      req.MessageID,
 			"conversation_id": req.ConversationID,
+			"group_id":        req.GroupID,
 			"content":         cleanContent,
 		},
 	}
 	outBytes, _ := json.Marshal(outEvent)
 
-	if req.ReceiverID != "" {
+	if req.GroupID != "" {
+		groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+		h.redisClient.Publish(ctx, groupChannel, string(outBytes))
+	} else if req.ReceiverID != "" {
 		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
 		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
 	}
 
 	client.Send <- outBytes
 }
+
+// handleSendGroupMessage xử lý gửi tin nhắn vào nhóm
+func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req models.SendMessageRequest
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" || req.GroupID == "" {
+		return
+	}
+
+	ctx := context.Background()
+	groupOID, err := primitive.ObjectIDFromHex(req.GroupID)
+	if err != nil {
+		return
+	}
+	userOID, err := primitive.ObjectIDFromHex(client.UserID)
+	if err != nil {
+		return
+	}
+
+	// Xác minh thành viên nhóm
+	if h.groupRepo != nil {
+		isMember, err := h.groupRepo.IsMember(ctx, groupOID, userOID)
+		if err != nil || !isMember {
+			log.Printf("User %s không thuộc nhóm %s", client.UserID, req.GroupID)
+			return
+		}
+	}
+
+	// Lấy profile người gửi
+	senderName := client.Username
+	senderAvatar := ""
+	if h.userRepo != nil {
+		sender, _ := h.userRepo.FindByID(ctx, client.UserID)
+		if sender != nil {
+			if sender.DisplayName != "" {
+				senderName = sender.DisplayName
+			}
+			senderAvatar = sender.AvatarURL
+		}
+	}
+
+	msgType := req.Type
+	if msgType == "" {
+		msgType = "text"
+	}
+
+	newMsg := &models.Message{
+		GroupID:      req.GroupID,
+		SenderID:     client.UserID,
+		SenderName:   senderName,
+		SenderAvatar: senderAvatar,
+		Content:      req.Content,
+		Type:         msgType,
+		FileName:     req.FileName,
+		FileSize:     req.FileSize,
+		ReplyTo:      req.ReplyTo,
+		IsRead:       true,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := h.msgRepo.Create(ctx, newMsg); err != nil {
+		log.Printf("Lỗi lưu tin nhắn nhóm vào MongoDB: %v", err)
+		return
+	}
+
+	// Broadcast tin nhắn vào Redis channel của nhóm
+	eventReceive := models.WSEvent{
+		Event:   "group:receive",
+		Payload: newMsg,
+	}
+	eventBytes, _ := json.Marshal(eventReceive)
+	groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+	h.redisClient.Publish(ctx, groupChannel, string(eventBytes))
+
+	// Trả ACK về cho người gửi
+	eventACK := models.WSEvent{
+		Event: "group:ack",
+		Payload: map[string]interface{}{
+			"temp_id": newMsg.ID.Hex(),
+			"message": newMsg,
+		},
+	}
+	ackBytes, _ := json.Marshal(eventACK)
+	client.Send <- ackBytes
+}
+
 

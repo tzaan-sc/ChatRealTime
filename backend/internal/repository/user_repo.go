@@ -93,3 +93,20 @@ func (r *UserRepository) FindAllExcept(ctx context.Context, currentUserID string
 	return users, nil
 }
 
+// FindByIDs lấy danh sách user theo mảng ObjectID
+func (r *UserRepository) FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.User, error) {
+	cursor, err := r.collection.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []models.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+
+

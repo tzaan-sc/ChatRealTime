@@ -4,6 +4,8 @@ import { token } from './auth';
 
 export const conversations = writable([]);
 export const activeConversation = writable(null); // { conversation, other_user }
+export const userGroups = writable([]);
+export const activeGroup = writable(null); // Group object
 export const currentMessages = writable([]);
 export const userDirectory = writable([]);
 
@@ -25,8 +27,21 @@ export async function loadConversations() {
   }
 }
 
-// Chọn cuộc trò chuyện và tải lịch sử
+// Tải danh sách nhóm của user
+export async function loadUserGroups() {
+  const t = get(token);
+  if (!t) return;
+  try {
+    const res = await apiRequest('/groups', 'GET', null, t);
+    userGroups.set(res.data || []);
+  } catch (err) {
+    console.error('Lỗi tải danh sách nhóm:', err);
+  }
+}
+
+// Chọn cuộc trò chuyện 1-1 và tải lịch sử
 export async function selectConversation(convItem) {
+  activeGroup.set(null);
   activeConversation.set(convItem);
   const t = get(token);
   const convID = convItem.conversation.custom_id;
@@ -40,7 +55,20 @@ export async function selectConversation(convItem) {
   }
 }
 
-// Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện
+// Chọn nhóm chat và tải lịch sử tin nhắn nhóm
+export async function selectGroup(groupItem) {
+  activeConversation.set(null);
+  activeGroup.set(groupItem);
+  const t = get(token);
+  try {
+    const res = await apiRequest(`/groups/${groupItem.id}/messages?limit=50`, 'GET', null, t);
+    currentMessages.set(res.data || []);
+  } catch (err) {
+    console.error('Lỗi tải tin nhắn nhóm:', err);
+  }
+}
+
+// Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện 1-1
 export function appendMessage(msg) {
   const active = get(activeConversation);
   if (active && active.conversation?.custom_id === msg.conversation_id) {
@@ -48,6 +76,16 @@ export function appendMessage(msg) {
   }
   loadConversations();
 }
+
+// Thêm tin nhắn nhóm mới vào danh sách nếu đang mở đúng nhóm
+export function appendGroupMessage(msg) {
+  const grp = get(activeGroup);
+  if (grp && grp.id === msg.group_id) {
+    currentMessages.update((msgs) => [...msgs, msg]);
+  }
+  loadUserGroups();
+}
+
 
 // Cập nhật trạng thái tin nhắn đã đọc khi nhận event chat:read_ack
 export function markMessagesAsReadLocally(convID) {

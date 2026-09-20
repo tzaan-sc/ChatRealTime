@@ -4,7 +4,9 @@
   import { wsService, incomingMessages } from './lib/services/websocket';
   import {
     loadConversations,
+    loadUserGroups,
     appendMessage,
+    appendGroupMessage,
     onlineUsers,
     setUserOnlineStatus,
     setUserTyping,
@@ -24,6 +26,7 @@
   $: if ($token) {
     wsService.connect($token);
     loadConversations();
+    loadUserGroups();
 
     clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
@@ -51,6 +54,18 @@
       case 'chat:ack':
         appendMessage(payload.message);
         break;
+
+      case 'group:receive':
+        appendGroupMessage(payload);
+        if (payload.sender_id !== $currentUser?.id) {
+          playNotificationSound();
+        }
+        break;
+
+      case 'group:ack':
+        appendGroupMessage(payload.message);
+        break;
+
 
       case 'chat:reaction_updated':
         if (payload?.message_id) {

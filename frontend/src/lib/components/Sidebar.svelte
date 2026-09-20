@@ -1,19 +1,37 @@
 <script>
-  import { conversations, activeConversation, selectConversation, userDirectory, onlineUsers } from '../stores/chat';
+  import {
+    conversations,
+    activeConversation,
+    selectConversation,
+    userGroups,
+    activeGroup,
+    selectGroup,
+    userDirectory,
+    onlineUsers
+  } from '../stores/chat';
   import { currentUser, logout, token } from '../stores/auth';
   import { apiRequest } from '../services/api';
-  import { MessageSquarePlus, LogOut, Search } from 'lucide-svelte';
+  import { MessageSquarePlus, Users, UserPlus, LogOut, Search, MessageSquare } from 'lucide-svelte';
+  import CreateGroupModal from './CreateGroupModal.svelte';
 
   let showUsersModal = false;
+  let showCreateGroupModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
+  let activeTab = 'direct'; // 'direct' hoặc 'groups'
 
-  // Lọc danh sách hội thoại theo từ khoá tìm kiếm
+  // Lọc danh sách hội thoại 1-1
   $: filteredConversations = $conversations.filter((item) => {
     if (!searchQuery.trim()) return true;
     const name = (item.other_user.display_name || item.other_user.username || '').toLowerCase();
     return name.includes(searchQuery.toLowerCase());
+  });
+
+  // Lọc danh sách nhóm
+  $: filteredGroups = $userGroups.filter((g) => {
+    if (!searchQuery.trim()) return true;
+    return (g.name || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   async function openNewChatModal() {
@@ -54,11 +72,14 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="icon-btn" title="Cuộc trò chuyện mới" on:click={openNewChatModal}>
+      <button class="icon-btn" title="Tạo nhóm trò chuyện mới" on:click={() => (showCreateGroupModal = true)}>
+        <Users size={19} />
+      </button>
+      <button class="icon-btn" title="Nhắn tin cá nhân mới" on:click={openNewChatModal}>
         <MessageSquarePlus size={20} />
       </button>
       <button class="icon-btn" title="Đăng xuất" on:click={logout}>
-        <LogOut size={20} />
+        <LogOut size={19} />
       </button>
     </div>
   </div>
@@ -66,48 +87,116 @@
   <!-- Search Bar -->
   <div class="search-box">
     <Search size={16} class="search-icon" />
-    <input type="text" placeholder="Tìm kiếm cuộc trò chuyện..." bind:value={searchQuery} />
+    <input
+      type="text"
+      placeholder={activeTab === 'direct' ? 'Tìm bạn bè...' : 'Tìm nhóm trò chuyện...'}
+      bind:value={searchQuery}
+    />
   </div>
 
-  <!-- Conversation List -->
+  <!-- Tab Switcher (Cá nhân / Nhóm) -->
+  <div class="sidebar-tabs">
+    <button
+      class="tab-btn"
+      class:active={activeTab === 'direct'}
+      on:click={() => (activeTab = 'direct')}
+    >
+      <MessageSquare size={15} />
+      <span>Cá nhân ({$conversations.length})</span>
+    </button>
+    <button
+      class="tab-btn"
+      class:active={activeTab === 'groups'}
+      on:click={() => (activeTab = 'groups')}
+    >
+      <Users size={15} />
+      <span>Nhóm ({$userGroups.length})</span>
+    </button>
+  </div>
+
+  <!-- List View -->
   <div class="conversation-list">
-    {#if filteredConversations.length === 0}
-      <div class="empty-state">
-        {searchQuery.trim() ? 'Không tìm thấy cuộc trò chuyện phù hợp' : 'Chưa có cuộc trò chuyện nào. Bấm nút dấu cộng để bắt đầu nhắn tin!'}
-      </div>
-    {:else}
-      {#each filteredConversations as item}
-        <div
-          class="conversation-item"
-          class:active={$activeConversation?.conversation?.custom_id === item.conversation.custom_id}
-          on:click={() => selectConversation(item)}
-        >
-          <div class="avatar-container">
-            <img src={item.other_user.avatar_url} alt="avatar" class="avatar" />
-            <span class="user-status-dot" class:online={$onlineUsers.has(item.other_user.id)}></span>
-          </div>
-          <div class="content">
-            <div class="top-line">
-              <span class="name">{item.other_user.display_name || item.other_user.username}</span>
-              <span class="time">
-                {item.conversation.last_message_at ? new Date(item.conversation.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-              </span>
-            </div>
-            <div class="bottom-line">
-              <p class="snippet">{item.conversation.last_message || 'Bắt đầu cuộc trò chuyện'}</p>
-              {#if item.unread_count > 0}
-                <span class="unread-badge">{item.unread_count}</span>
-              {/if}
-            </div>
-          </div>
+    {#if activeTab === 'direct'}
+      <!-- Danh sách Chat 1-1 -->
+      {#if filteredConversations.length === 0}
+        <div class="empty-state">
+          {searchQuery.trim() ? 'Không tìm thấy cuộc trò chuyện phù hợp' : 'Chưa có cuộc trò chuyện nào. Bấm nút dấu cộng để bắt đầu nhắn tin!'}
         </div>
-      {/each}
+      {:else}
+        {#each filteredConversations as item}
+          <div
+            class="conversation-item"
+            class:active={$activeConversation?.conversation?.custom_id === item.conversation.custom_id}
+            role="button"
+            tabindex="0"
+            on:click={() => selectConversation(item)}
+            on:keydown={(e) => e.key === 'Enter' && selectConversation(item)}
+          >
+            <div class="avatar-container">
+              <img src={item.other_user.avatar_url} alt="avatar" class="avatar" />
+              <span class="user-status-dot" class:online={$onlineUsers.has(item.other_user.id)}></span>
+            </div>
+            <div class="content">
+              <div class="top-line">
+                <span class="name">{item.other_user.display_name || item.other_user.username}</span>
+                <span class="time">
+                  {item.conversation.last_message_at ? new Date(item.conversation.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
+              </div>
+              <div class="bottom-line">
+                <p class="snippet">{item.conversation.last_message || 'Bắt đầu cuộc trò chuyện'}</p>
+                {#if item.unread_count > 0}
+                  <span class="unread-badge">{item.unread_count}</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/each}
+      {/if}
+    {:else}
+      <!-- Danh sách Chat Nhóm -->
+      {#if filteredGroups.length === 0}
+        <div class="empty-state">
+          <p>{searchQuery.trim() ? 'Không tìm thấy nhóm nào phù hợp' : 'Bạn chưa tham gia nhóm nào.'}</p>
+          <button class="create-group-prompt-btn" on:click={() => (showCreateGroupModal = true)}>
+            + Tạo nhóm ngay
+          </button>
+        </div>
+      {:else}
+        {#each filteredGroups as group}
+          <div
+            class="conversation-item group-item"
+            class:active={$activeGroup?.id === group.id}
+            role="button"
+            tabindex="0"
+            on:click={() => selectGroup(group)}
+            on:keydown={(e) => e.key === 'Enter' && selectGroup(group)}
+          >
+            <div class="avatar-container">
+              <img src={group.avatar} alt="group-avatar" class="avatar group-avatar-shape" />
+            </div>
+            <div class="content">
+              <div class="top-line">
+                <span class="name group-title">{group.name}</span>
+                <span class="time">
+                  {group.updated_at ? new Date(group.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
+              </div>
+              <div class="bottom-line">
+                <p class="snippet member-tag">{group.member_ids?.length || 0} thành viên</p>
+              </div>
+            </div>
+          </div>
+        {/each}
+      {/if}
     {/if}
   </div>
 </aside>
 
 <!-- Modal Chọn Bạn Chat Mới -->
 {#if showUsersModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" on:click={() => (showUsersModal = false)}>
     <div class="modal-box glass-card" on:click={(e) => e.stopPropagation()}>
       <div class="modal-top">
@@ -124,7 +213,13 @@
       {:else}
         <div class="user-list">
           {#each $userDirectory as u}
-            <div class="user-item" on:click={() => startChatWithUser(u)}>
+            <div
+              class="user-item"
+              role="button"
+              tabindex="0"
+              on:click={() => startChatWithUser(u)}
+              on:keydown={(e) => e.key === 'Enter' && startChatWithUser(u)}
+            >
               <div class="avatar-container">
                 <img src={u.avatar_url} alt="avatar" class="avatar" />
                 <span class="user-status-dot" class:online={$onlineUsers.has(u.id)}></span>
@@ -141,77 +236,127 @@
   </div>
 {/if}
 
+<!-- Modal Tạo Nhóm Mới -->
+{#if showCreateGroupModal}
+  <CreateGroupModal onClose={() => (showCreateGroupModal = false)} />
+{/if}
+
 <style>
   .sidebar {
-    width: 360px;
+    width: 320px;
     height: 100vh;
     border-right: 1px solid var(--border-glass);
     display: flex;
     flex-direction: column;
+    background: var(--bg-surface);
   }
+
   .sidebar-header {
-    padding: 18px 20px;
+    padding: 16px 20px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     border-bottom: 1px solid var(--border-glass);
   }
+
   .user-info { display: flex; align-items: center; gap: 12px; }
-  .my-avatar { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--accent-primary); }
+  .my-avatar { width: 40px; height: 40px; border-radius: 50%; }
   .user-info h4 { font-size: 15px; font-weight: 600; color: #fff; }
   .online-tag { font-size: 11px; color: var(--online-color); }
-  .header-actions { display: flex; gap: 8px; }
+
+  .header-actions { display: flex; gap: 6px; }
   .icon-btn {
-    background: rgba(255, 255, 255, 0.06);
+    background: transparent;
     border: none;
-    color: var(--text-muted);
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
+    color: var(--text-dim);
     cursor: pointer;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: 0.2s;
   }
-  .icon-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
   .search-box {
-    margin: 14px 20px;
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-  :global(.search-icon) {
-    position: absolute;
-    left: 12px;
-    color: var(--text-dim);
-  }
-  .search-box input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.04);
+    margin: 12px 16px 6px 16px;
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-md);
-    padding: 10px 14px 10px 36px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  :global(.search-icon) { color: var(--text-dim); }
+  .search-box input {
+    background: transparent;
+    border: none;
     color: #fff;
     font-size: 13px;
+    width: 100%;
     outline: none;
   }
-  .conversation-list { flex: 1; overflow-y: auto; padding: 0 10px 20px; }
+
+  /* Tabs Switcher */
+  .sidebar-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px 16px 8px 16px;
+    border-bottom: 1px solid var(--border-glass);
+  }
+  .tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .tab-btn.active {
+    background: rgba(167, 139, 250, 0.18);
+    color: #c4b5fd;
+    border: 1px solid rgba(167, 139, 250, 0.35);
+  }
+
+  .conversation-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .conversation-item {
     display: flex;
+    align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: 0.2s;
-    margin-bottom: 4px;
   }
   .conversation-item:hover { background: rgba(255, 255, 255, 0.05); }
-  .conversation-item.active { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); }
+  .conversation-item.active { background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); }
 
-  /* Avatar & Online Dot */
-  .avatar-container { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
-  .avatar { width: 46px; height: 46px; border-radius: 50%; }
+  .avatar-container { position: relative; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; }
+  .group-avatar-shape { border-radius: 12px; }
   .user-status-dot {
     position: absolute;
     bottom: 2px;
@@ -220,37 +365,87 @@
     height: 10px;
     border-radius: 50%;
     background: var(--offline-color);
-    border: 2px solid var(--bg-secondary);
+    border: 2px solid var(--bg-surface);
   }
   .user-status-dot.online { background: var(--online-color); }
 
-  .content { flex: 1; min-width: 0; }
+  .content { flex: 1; overflow: hidden; }
   .top-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
-  .name { font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .name { font-size: 14px; font-weight: 500; color: #fff; }
+  .group-title { color: #e0e7ff; font-weight: 600; }
   .time { font-size: 11px; color: var(--text-dim); }
   .bottom-line { display: flex; justify-content: space-between; align-items: center; }
-  .snippet { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+  .snippet {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .member-tag { color: #a78bfa; font-size: 11px; }
   .unread-badge {
-    background: var(--accent-primary);
+    background: var(--accent-gradient);
     color: #fff;
-    font-size: 11px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
     font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 99px;
   }
-  .empty-state { padding: 30px 20px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+  .empty-state {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .create-group-prompt-btn {
+    margin-top: 14px;
+    background: var(--accent-gradient);
+    border: none;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* Modal Overlay */
   .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
   }
-  .modal-box { width: 360px; padding: 24px; border-radius: var(--radius-lg); }
+  .modal-box {
+    width: 380px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
   .modal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .modal-top h3 { font-size: 16px; color: #fff; }
-  .close-btn { background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; }
-  .close-btn:hover { color: #fff; }
-  .error-msg { color: #f87171; font-size: 13px; text-align: center; padding: 12px; }
-  .user-list { max-height: 300px; overflow-y: auto; }
-  .user-item { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; align-items: center; }
-  .user-item:hover { background: rgba(255, 255, 255, 0.08); }
-  .u-name { font-size: 14px; font-weight: 600; }
+  .close-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; }
+  .user-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .user-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .user-item:hover { background: rgba(255, 255, 255, 0.05); }
+  .u-name { font-size: 14px; color: #fff; font-weight: 500; }
   .u-sub { font-size: 12px; color: var(--text-dim); }
+  .error-msg { color: #f87171; font-size: 13px; text-align: center; }
 </style>

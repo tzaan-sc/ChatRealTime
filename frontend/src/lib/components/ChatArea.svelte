@@ -1,5 +1,5 @@
 <script>
-  import { activeConversation, currentMessages, onlineUsers, typingUsers } from '../stores/chat';
+  import { activeConversation, activeGroup, currentMessages, onlineUsers, typingUsers } from '../stores/chat';
   import { currentUser } from '../stores/auth';
   import { wsService } from '../services/websocket';
   import { afterUpdate } from 'svelte';
@@ -15,10 +15,12 @@
     Reply,
     Edit2,
     X,
-    Smile
+    Smile,
+    Users
   } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
+  import GroupMembersModal from './GroupMembersModal.svelte';
 
   const QUICK_EMOJIS = ['❤️', '😂', '👍', '😢', '🔥', '🚀'];
 
@@ -45,7 +47,10 @@
   let replyingTo = null; // { message_id, sender_name, content }
   let editingMessage = null; // message object
 
-  // Kiểm tra đối phương có online không
+  // Trạng thái Modal Thành viên nhóm
+  let showGroupMembersModal = false;
+
+  $: isGroup = !!$activeGroup;
   $: partnerID = $activeConversation?.other_user?.id;
   $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
   $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
@@ -59,7 +64,7 @@
 
   // Bắt sự kiện gõ phím để bắn Typing Indicator
   function handleInput() {
-    if (!$activeConversation || !partnerID || editingMessage) return;
+    if (isGroup || !$activeConversation || !partnerID || editingMessage) return;
 
     if (!isTyping) {
       isTyping = true;
@@ -75,43 +80,75 @@
 
   // Gửi tin nhắn chữ hoặc lưu sửa tin nhắn
   function handleSend() {
-    if (!inputContent.trim() || !$activeConversation || !partnerID) return;
+    if (!inputContent.trim()) return;
+    if (!isGroup && (!$activeConversation || !partnerID)) return;
+    if (isGroup && !$activeGroup) return;
 
     // Nếu đang trong chế độ chỉnh sửa tin nhắn
     if (editingMessage) {
-      wsService.send('chat:edit', {
-        message_id: editingMessage.id,
-        conversation_id: $activeConversation.conversation.custom_id,
-        receiver_id: partnerID,
-        content: inputContent.trim()
-      });
+      if (isGroup) {
+        wsService.send('chat:edit', {
+          message_id: editingMessage.id,
+          group_id: $activeGroup.id,
+          content: inputContent.trim()
+        });
+      } else {
+        wsService.send('chat:edit', {
+          message_id: editingMessage.id,
+          conversation_id: $activeConversation.conversation.custom_id,
+          receiver_id: partnerID,
+          content: inputContent.trim()
+        });
+      }
       cancelEdit();
       return;
     }
 
-    // Dừng typing khi gửi tin
-    clearTimeout(typingTimeout);
-    if (isTyping) {
-      isTyping = false;
-      wsService.send('typing:stop', { receiver_id: partnerID });
+    // Dừng typing khi gửi tin (với 1-1)
+    if (!isGroup) {
+      clearTimeout(typingTimeout);
+      if (isTyping) {
+        isTyping = false;
+        wsService.send('typing:stop', { receiver_id: partnerID });
+      }
     }
 
-    const payload = {
-      receiver_id: partnerID,
-      content: inputContent.trim(),
-      type: 'text'
-    };
-
-    if (replyingTo) {
-      payload.reply_to = {
-        message_id: replyingTo.message_id,
-        sender_name: replyingTo.sender_name,
-        content: replyingTo.content
+    if (isGroup) {
+      const payload = {
+        group_id: $activeGroup.id,
+        content: inputContent.trim(),
+        type: 'text'
       };
-      replyingTo = null;
+
+      if (replyingTo) {
+        payload.reply_to = {
+          message_id: replyingTo.message_id,
+          sender_name: replyingTo.sender_name,
+          content: replyingTo.content
+        };
+        replyingTo = null;
+      }
+
+      wsService.send('group:send', payload);
+    } else {
+      const payload = {
+        receiver_id: partnerID,
+        content: inputContent.trim(),
+        type: 'text'
+      };
+
+      if (replyingTo) {
+        payload.reply_to = {
+          message_id: replyingTo.message_id,
+          sender_name: replyingTo.sender_name,
+          content: replyingTo.content
+        };
+        replyingTo = null;
+      }
+
+      wsService.send('chat:send', payload);
     }
 
-    wsService.send('chat:send', payload);
     inputContent = '';
   }
 
@@ -124,7 +161,9 @@
 
   // Upload và gửi tin nhắn tệp/ảnh/voice
   async function uploadAndSend(file) {
-    if (!file || !$activeConversation || !partnerID) return;
+    if (!file) return;
+    if (!isGroup && (!$activeConversation || !partnerID)) return;
+    if (isGroup && !$activeGroup) return;
 
     if (file.size > 25 * 1024 * 1024) {
       alert('Dung lượng tệp vượt quá giới hạn 25MB');
@@ -154,24 +193,45 @@
 
       const data = await res.json();
 
-      const payload = {
-        receiver_id: partnerID,
-        content: data.file_url,
-        type: data.type,
-        file_name: data.file_name,
-        file_size: data.file_size
-      };
-
-      if (replyingTo) {
-        payload.reply_to = {
-          message_id: replyingTo.message_id,
-          sender_name: replyingTo.sender_name,
-          content: replyingTo.content
+      if (isGroup) {
+        const payload = {
+          group_id: $activeGroup.id,
+          content: data.file_url,
+          type: data.type,
+          file_name: data.file_name,
+          file_size: data.file_size
         };
-        replyingTo = null;
-      }
 
-      wsService.send('chat:send', payload);
+        if (replyingTo) {
+          payload.reply_to = {
+            message_id: replyingTo.message_id,
+            sender_name: replyingTo.sender_name,
+            content: replyingTo.content
+          };
+          replyingTo = null;
+        }
+
+        wsService.send('group:send', payload);
+      } else {
+        const payload = {
+          receiver_id: partnerID,
+          content: data.file_url,
+          type: data.type,
+          file_name: data.file_name,
+          file_size: data.file_size
+        };
+
+        if (replyingTo) {
+          payload.reply_to = {
+            message_id: replyingTo.message_id,
+            sender_name: replyingTo.sender_name,
+            content: replyingTo.content
+          };
+          replyingTo = null;
+        }
+
+        wsService.send('chat:send', payload);
+      }
     } catch (err) {
       console.error('Lỗi upload:', err);
       alert('Không thể gửi tệp: ' + err.message);
@@ -269,10 +329,17 @@
     else if (msg.type === 'voice') snippet = '🎙️ [Tin nhắn thoại]';
     else if (msg.type === 'file') snippet = `📎 [Tệp] ${msg.file_name || ''}`;
 
-    const senderName =
-      msg.sender_id === $currentUser.id
-        ? 'Bạn'
-        : $activeConversation.other_user.display_name || $activeConversation.other_user.username;
+    let senderName = 'Bạn';
+    if (msg.sender_id !== $currentUser?.id) {
+      if (isGroup) {
+        senderName = msg.sender_name || 'Thành viên';
+      } else {
+        senderName =
+          $activeConversation?.other_user?.display_name ||
+          $activeConversation?.other_user?.username ||
+          'Đối phương';
+      }
+    }
 
     replyingTo = {
       message_id: msg.id,
@@ -304,22 +371,39 @@
   // Chức năng Thu hồi (Delete / Unsend)
   function deleteMessage(msg) {
     if (!confirm('Bạn có chắc chắn muốn thu hồi tin nhắn này với mọi người?')) return;
-    wsService.send('chat:delete', {
-      message_id: msg.id,
-      conversation_id: $activeConversation.conversation.custom_id,
-      receiver_id: partnerID
-    });
+    if (isGroup) {
+      wsService.send('chat:delete', {
+        message_id: msg.id,
+        group_id: $activeGroup.id
+      });
+    } else {
+      wsService.send('chat:delete', {
+        message_id: msg.id,
+        conversation_id: $activeConversation.conversation.custom_id,
+        receiver_id: partnerID
+      });
+    }
   }
 
   // Thả reaction
   function toggleReaction(msg, emoji) {
-    if (!msg || !msg.id || !$activeConversation || !partnerID) return;
-    wsService.send('chat:react', {
-      message_id: msg.id,
-      conversation_id: $activeConversation.conversation.custom_id,
-      receiver_id: partnerID,
-      emoji: emoji
-    });
+    if (!msg || !msg.id) return;
+    if (isGroup) {
+      if (!$activeGroup) return;
+      wsService.send('chat:react', {
+        message_id: msg.id,
+        group_id: $activeGroup.id,
+        emoji: emoji
+      });
+    } else {
+      if (!$activeConversation || !partnerID) return;
+      wsService.send('chat:react', {
+        message_id: msg.id,
+        conversation_id: $activeConversation.conversation.custom_id,
+        receiver_id: partnerID,
+        emoji: emoji
+      });
+    }
   }
 
   // Tính toán nhóm reaction
@@ -363,8 +447,8 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  // Gửi event xác nhận đã đọc khi đang mở xem khung chat
-  $: if ($activeConversation && partnerID) {
+  // Gửi event xác nhận đã đọc khi đang mở xem khung chat (1-1)
+  $: if (!isGroup && $activeConversation && partnerID) {
     wsService.send('chat:read', {
       conversation_id: $activeConversation.conversation.custom_id,
       partner_id: partnerID
@@ -372,12 +456,12 @@
   }
 </script>
 
-{#if !$activeConversation}
+{#if !$activeConversation && !$activeGroup}
   <div class="empty-chat glass-card">
     <div class="empty-content">
       <div class="icon-circle">💬</div>
       <h2>Chào mừng đến với Realtime Chat!</h2>
-      <p>Chọn một người bạn ở danh sách bên trái để bắt đầu cuộc trò chuyện.</p>
+      <p>Chọn một người bạn hoặc một nhóm trò chuyện ở danh sách bên trái để bắt đầu.</p>
     </div>
   </div>
 {:else}
@@ -385,24 +469,47 @@
   <main class="chat-area" on:paste={handlePaste}>
     <!-- Header -->
     <div class="chat-header glass-card">
-      <div class="partner-info">
-        <div class="avatar-wrap">
-          <img src={$activeConversation.other_user.avatar_url} alt="avatar" class="header-avatar" />
-          <span class="status-dot" class:online={isPartnerOnline}></span>
+      {#if isGroup}
+        <div class="partner-info">
+          <div class="avatar-wrap">
+            <img
+              src={$activeGroup.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${$activeGroup.id}`}
+              alt="avatar"
+              class="header-avatar"
+            />
+          </div>
+          <div>
+            <h3>{$activeGroup.name}</h3>
+            <span class="status-sub">
+              <span class="online-text">{$activeGroup.member_count || $activeGroup.members?.length || 0} thành viên</span>
+            </span>
+          </div>
         </div>
-        <div>
-          <h3>{$activeConversation.other_user.display_name || $activeConversation.other_user.username}</h3>
-          <span class="status-sub">
-            {#if isPartnerTyping}
-              <span class="typing-text">đang soạn tin...</span>
-            {:else if isPartnerOnline}
-              <span class="online-text">Đang hoạt động</span>
-            {:else}
-              <span class="offline-text">Ngoại tuyến</span>
-            {/if}
-          </span>
+        <div class="header-actions">
+          <button class="header-action-btn" on:click={() => (showGroupMembersModal = true)} title="Xem thành viên & Quản lý nhóm">
+            <Users size={19} />
+          </button>
         </div>
-      </div>
+      {:else}
+        <div class="partner-info">
+          <div class="avatar-wrap">
+            <img src={$activeConversation.other_user.avatar_url} alt="avatar" class="header-avatar" />
+            <span class="status-dot" class:online={isPartnerOnline}></span>
+          </div>
+          <div>
+            <h3>{$activeConversation.other_user.display_name || $activeConversation.other_user.username}</h3>
+            <span class="status-sub">
+              {#if isPartnerTyping}
+                <span class="typing-text">đang soạn tin...</span>
+              {:else if isPartnerOnline}
+                <span class="online-text">Đang hoạt động</span>
+              {:else}
+                <span class="offline-text">Ngoại tuyến</span>
+              {/if}
+            </span>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Messages Body -->
@@ -450,6 +557,16 @@
 
           <!-- Bong Bóng Tin Nhắn Chính -->
           <div class="bubble" class:bubble-me={isMe} class:bubble-other={!isMe}>
+            <!-- Tên & Avatar thành viên gửi trong nhóm chat -->
+            {#if isGroup && !isMe}
+              <div class="group-sender-header">
+                {#if msg.sender_avatar}
+                  <img src={msg.sender_avatar} alt="avatar" class="bubble-sender-avatar" />
+                {/if}
+                <span class="bubble-sender-name">{msg.sender_name || 'Thành viên'}</span>
+              </div>
+            {/if}
+
             <!-- Khung Trích Dẫn Tin Nhắn Cũ (Reply Card) -->
             {#if msg.reply_to}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -682,6 +799,14 @@
       onClose={() => (selectedImage = null)}
     />
   {/if}
+
+  <!-- Modal Quản Lý Thành Viên Nhóm -->
+  {#if showGroupMembersModal && $activeGroup}
+    <GroupMembersModal
+      groupID={$activeGroup.id}
+      onClose={() => (showGroupMembersModal = false)}
+    />
+  {/if}
 {/if}
 
 <style>
@@ -695,6 +820,45 @@
     border-bottom: 1px solid var(--border-glass);
     display: flex;
     align-items: center;
+    justify-content: space-between;
+  }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .header-action-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-glass);
+    color: var(--text-dim);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+  }
+  .header-action-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+    transform: scale(1.05);
+  }
+  .group-sender-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .bubble-sender-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .bubble-sender-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a78bfa;
   }
   .partner-info { display: flex; align-items: center; gap: 14px; }
   .avatar-wrap { position: relative; }
