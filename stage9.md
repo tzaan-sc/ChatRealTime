@@ -16,25 +16,25 @@ Giai đoạn này sẽ mang đến tính năng "xịn xò" nhất của các ứ
 
 ## 📋 Checklist Tiến Độ Giai Đoạn 9
 
-- [ ] **1. Bổ sung Signaling Events vào WebSocket Hub (Golang):**
-  - [ ] `call:request`: Người gọi bắt đầu cuộc gọi (chứa `receiver_id`, `call_type`: "video"|"audio").
-  - [ ] `call:accept`: Người nhận đồng ý nghe máy.
-  - [ ] `call:reject`: Người nhận từ chối cuộc gọi.
-  - [ ] `call:offer`: Trao đổi thông số SDP Offer.
-  - [ ] `call:answer`: Trao đổi thông số SDP Answer.
-  - [ ] `call:ice_candidate`: Trao đổi địa chỉ mạng ICE Candidate qua STUN.
-  - [ ] `call:hangup`: Kết thúc cuộc gọi từ một trong hai phía.
-- [ ] **2. Xây dựng Trình Quản lý WebRTC trên Frontend (`webrtc.js`):**
-  - [ ] Khởi tạo `RTCPeerConnection` với cấu hình ICE Google STUN Server.
-  - [ ] Lấy luồng Media (`navigator.mediaDevices.getUserMedia`).
-  - [ ] Gán Local Stream và Remote Stream vào các thẻ `<video>` HTML5.
-- [ ] **3. Xây dựng Component Giao diện Cuộc gọi (`CallModal.svelte`):**
-  - [ ] Giao diện cuộc gọi đến kèm âm thanh chuông reo (Web Audio API).
-  - [ ] Khung hình Video toàn màn hình chuẩn điện ảnh Cyber Glassmorphism.
-  - [ ] Bảng nút chức năng điều khiển âm thanh, hình ảnh và cúp máy.
-- [ ] **4. Tích hợp nút Gọi vào `ChatArea.svelte`:**
-  - [ ] Icon Gọi thoại 📞 và Gọi Video 📹 trên thanh Header của cuộc trò chuyện.
-- [ ] **5. Kiểm thử toàn diện 6 kịch bản gọi điện P2P**.
+- [x] **1. Bổ sung Signaling Events vào WebSocket Hub (Golang):**
+  - [x] `call:request`: Người gọi bắt đầu cuộc gọi (chứa `receiver_id`, `call_type`: "video"|"audio").
+  - [x] `call:accept`: Người nhận đồng ý nghe máy.
+  - [x] `call:reject`: Người nhận từ chối cuộc gọi.
+  - [x] `call:offer`: Trao đổi thông số SDP Offer.
+  - [x] `call:answer`: Trao đổi thông số SDP Answer.
+  - [x] `call:ice_candidate`: Trao đổi địa chỉ mạng ICE Candidate qua STUN.
+  - [x] `call:hangup`: Kết thúc cuộc gọi từ một trong hai phía.
+- [x] **2. Xây dựng Trình Quản lý WebRTC trên Frontend (`webrtc.js`):**
+  - [x] Khởi tạo `RTCPeerConnection` với cấu hình ICE Google STUN Server.
+  - [x] Lấy luồng Media (`navigator.mediaDevices.getUserMedia`).
+  - [x] Gán Local Stream và Remote Stream vào các thẻ `<video>` HTML5.
+- [x] **3. Xây dựng Component Giao diện Cuộc gọi (`CallModal.svelte`):**
+  - [x] Giao diện cuộc gọi đến kèm âm thanh chuông reo (Web Audio API).
+  - [x] Khung hình Video toàn màn hình chuẩn điện ảnh Cyber Glassmorphism.
+  - [x] Bảng nút chức năng điều khiển âm thanh, hình ảnh và cúp máy.
+- [x] **4. Tích hợp nút Gọi vào `ChatArea.svelte`:**
+  - [x] Icon Gọi thoại 📞 và Gọi Video 📹 trên thanh Header của cuộc trò chuyện.
+- [x] **5. Kiểm thử toàn diện các kịch bản gọi điện P2P**.
 
 ---
 

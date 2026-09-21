@@ -16,11 +16,14 @@
     Edit2,
     X,
     Smile,
-    Users
+    Users,
+    Phone,
+    Video
   } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
   import GroupMembersModal from './GroupMembersModal.svelte';
+  import { startCall } from '../stores/call';
 
   const QUICK_EMOJIS = ['❤️', '😂', '👍', '😢', '🔥', '🚀'];
 
@@ -54,6 +57,19 @@
   $: partnerID = $activeConversation?.other_user?.id;
   $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
   $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
+
+  // Bắt đầu cuộc gọi thoại hoặc video call
+  function initiateCall(type) {
+    if (!$activeConversation?.other_user) return;
+    startCall(
+      {
+        id: $activeConversation.other_user.id,
+        name: $activeConversation.other_user.display_name || $activeConversation.other_user.username,
+        avatar: $activeConversation.other_user.avatar_url
+      },
+      type
+    );
+  }
 
   // Tự động cuộn xuống đáy khi có tin nhắn mới (chỉ cuộn nếu không đang xem tin cũ)
   afterUpdate(() => {
@@ -509,6 +525,22 @@
             </span>
           </div>
         </div>
+        <div class="header-actions">
+          <button
+            class="header-action-btn"
+            on:click={() => initiateCall('audio')}
+            title={isPartnerOnline ? 'Gọi thoại' : 'Bạn chat đang ngoại tuyến'}
+          >
+            <Phone size={18} />
+          </button>
+          <button
+            class="header-action-btn video-call-btn"
+            on:click={() => initiateCall('video')}
+            title={isPartnerOnline ? 'Gọi Video' : 'Bạn chat đang ngoại tuyến'}
+          >
+            <Video size={18} />
+          </button>
+        </div>
       {/if}
     </div>
 
@@ -840,6 +872,10 @@
     color: #fff;
     background: rgba(255, 255, 255, 0.16);
     transform: scale(1.05);
+  }
+  .video-call-btn:hover {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.2);
   }
   .group-sender-header {
     display: flex;

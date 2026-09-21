@@ -253,6 +253,9 @@ func (h *Hub) HandleClientEvent(client *Client, event models.WSEvent) {
 	case "chat:read":
 		h.handleMarkAsRead(client, event.Payload)
 
+	case "call:request", "call:accept", "call:reject", "call:offer", "call:answer", "call:ice_candidate", "call:hangup":
+		h.handleCallSignaling(client, event.Event, event.Payload)
+
 	case "ping":
 		resp, _ := json.Marshal(models.WSEvent{Event: "pong", Payload: "pong"})
 		client.Send <- resp
@@ -647,5 +650,56 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 	ackBytes, _ := json.Marshal(eventACK)
 	client.Send <- ackBytes
 }
+
+// handleCallSignaling xử lý chuyển tiếp các gói tin báo hiệu WebRTC P2P (Offer, Answer, ICE, Hangup...)
+func (h *Hub) handleCallSignaling(client *Client, eventType string, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &data); err != nil {
+		return
+	}
+
+	receiverID, _ := data["receiver_id"].(string)
+	if receiverID == "" {
+		return
+	}
+
+	// Lấy thông tin người gửi (caller / callee)
+	senderName := client.Username
+	senderAvatar := ""
+	if h.userRepo != nil {
+		ctx := context.Background()
+		sender, _ := h.userRepo.FindByID(ctx, client.UserID)
+		if sender != nil {
+			if sender.DisplayName != "" {
+				senderName = sender.DisplayName
+			}
+			senderAvatar = sender.AvatarURL
+		}
+	}
+
+	data["sender_id"] = client.UserID
+	data["sender_name"] = senderName
+	data["sender_avatar"] = senderAvatar
+
+	outEvent := models.WSEvent{
+		Event:   eventType,
+		Payload: data,
+	}
+	outBytes, err := json.Marshal(outEvent)
+	if err != nil {
+		return
+	}
+
+	// Chuyển tiếp gói tin qua Redis channel của người nhận
+	ctx := context.Background()
+	receiverChannel := fmt.Sprintf("user:chat:%s", receiverID)
+	h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
+}
+
 
 

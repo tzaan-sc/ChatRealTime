@@ -53,10 +53,10 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Tối ưu hóa kênh Redis Pub/Sub cho nhóm: `group:chat:{groupId}` broadcast 1 lần tới tất cả thành viên.
   - [x] Bong bóng chat nhóm hiển thị tên người gửi và avatar riêng biệt.
 
-[MÔ-ĐUN 7: CUỘC GỌI THOẠI & VIDEO CALL REALTIME (WEBRTC)]
-  - [ ] Trao đổi tín hiệu báo hiệu (Signaling: Offer, Answer, ICE Candidates) qua WebSocket Hub hiện có.
-  - [ ] Kết nối P2P âm thanh và hình ảnh trực tiếp không tốn băng thông server qua Google STUN.
-  - [ ] Giao diện cuộc gọi sang trọng: Màn hình chuông reo, khung Video Call Picture-in-Picture, Mute mic, Tắt camera.
+[MÔ-ĐUN 7: CUỘC GỌI THOẠI & VIDEO CALL REALTIME (WEBRTC)] [ĐÃ HOÀN THÀNH]
+  - [x] Trao đổi tín hiệu báo hiệu (Signaling: Offer, Answer, ICE Candidates) qua WebSocket Hub hiện có.
+  - [x] Kết nối P2P âm thanh và hình ảnh trực tiếp không tốn băng thông server qua Google STUN.
+  - [x] Giao diện cuộc gọi sang trọng: Màn hình chuông reo, khung Video Call Picture-in-Picture, Mute mic, Tắt camera.
 
 [MÔ-ĐUN 8: ĐÓNG GÓI, TEST TẢI & DEPLOYMENT]
   - [ ] Multi-stage Dockerfile cho Backend Go (Binary siêu nhẹ ~15MB).
@@ -123,11 +123,11 @@ GIAI ĐOẠN 8: TRÒ CHUYỆN NHÓM (GROUP CHAT) [ĐÃ HOÀN THÀNH]
 [x] 8.2. Redis Pub/Sub channel nhóm `group:chat:{groupId}`.
 [x] 8.3. Giao diện tạo nhóm, danh sách nhóm và bong bóng chat hiển thị tên/avatar người gửi.
 
-GIAI ĐOẠN 9: CUỘC GỌI THOẠI & VIDEO CALL 1-1 (WEBRTC)
+GIAI ĐOẠN 9: CUỘC GỌI THOẠI & VIDEO CALL 1-1 (WEBRTC) [ĐÃ HOÀN THÀNH]
 -> File tài liệu: stage9.md
-[ ] 9.1. WebSocket Signaling Hub: Trao đổi Offer, Answer, ICE Candidates qua STUN Google.
-[ ] 9.2. WebRTC Manager trên Svelte: Quản lý Peer Connection & Media Streams.
-[ ] 9.3. Giao diện Call Modal: Màn hình chuông reo, Video lớn, Camera nhỏ, nút Mute/Cúp máy.
+[x] 9.1. WebSocket Signaling Hub: Trao đổi Offer, Answer, ICE Candidates qua STUN Google.
+[x] 9.2. WebRTC Manager trên Svelte: Quản lý Peer Connection & Media Streams.
+[x] 9.3. Giao diện Call Modal: Màn hình chuông reo, Video lớn, Camera nhỏ, nút Mute/Cúp máy.
 
 GIAI ĐOẠN 10 (FINAL): ĐÓNG GÓI DOCKER & TRIỂN KHAI PRODUCTION
 -> File tài liệu: stage10.md

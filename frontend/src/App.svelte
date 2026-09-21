@@ -19,6 +19,15 @@
   import AuthModal from './lib/components/AuthModal.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ChatArea from './lib/components/ChatArea.svelte';
+  import CallModal from './lib/components/CallModal.svelte';
+  import {
+    handleIncomingCall,
+    handleCallAccepted,
+    handleReceiveOffer,
+    handleReceiveAnswer,
+    handleReceiveIceCandidate,
+    handleRemoteHangup
+  } from './lib/stores/call';
 
   let heartbeatInterval;
 
@@ -117,6 +126,35 @@
           markMessagesAsReadLocally(payload.conversation_id);
         }
         break;
+
+      // 3. WebRTC Signaling Events
+      case 'call:request':
+        handleIncomingCall(payload);
+        break;
+
+      case 'call:accept':
+        handleCallAccepted();
+        break;
+
+      case 'call:reject':
+        handleRemoteHangup(payload);
+        break;
+
+      case 'call:offer':
+        handleReceiveOffer(payload);
+        break;
+
+      case 'call:answer':
+        handleReceiveAnswer(payload);
+        break;
+
+      case 'call:ice_candidate':
+        handleReceiveIceCandidate(payload);
+        break;
+
+      case 'call:hangup':
+        handleRemoteHangup(payload);
+        break;
     }
   }
 </script>
@@ -127,6 +165,7 @@
   {:else}
     <Sidebar />
     <ChatArea />
+    <CallModal />
   {/if}
 </div>
 
