@@ -137,3 +137,9 @@ GIAI ĐOẠN 10 (FINAL): ĐÓNG GÓI DOCKER & TRIỂN KHAI PRODUCTION
 [ ] 10.4. Kiểm thử tải, tính ổn định và hướng dẫn triển khai lên Cloud / VPS.
 
 ================================================================================
+IV. LỘ TRÌNH PHÁT TRIỂN NÂNG CAO (ENTERPRISE ROADMAP: STAGE 11 -> STAGE 20)
+--------------------------------------------------------------------------------
+Xem chi tiết tại file tài liệu chuyên sâu: [LoTrinh_PhatTrien_NangCao.md]
+Gồm 10 đại phân hệ: E2EE, AI Assistant, WebRTC SFU Group Call, Spaces & Threads,
+Meilisearch, Bot Platform, Lottie Stickers, Offline-First, Distributed Gateway NATS & APM.
+================================================================================
