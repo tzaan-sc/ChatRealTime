@@ -24,7 +24,7 @@
 - [ ] Gửi tin nhắn im lặng (Silent Messages - không gây chuông/rung phía người nhận)
 - [ ] Ghim nhiều tin nhắn cùng lúc trong cuộc trò chuyện (Multi-Pinned Messages)
 - [ ] Luồng thảo luận theo từng tin nhắn (Message Threads / In-Thread Replies)
-- [ ] Đánh dấu tin nhắn là chưa đọc (Mark as Unread)
+- [x] Đánh dấu tin nhắn là chưa đọc (Mark as Unread)
 - [ ] Tự động đồng bộ tin nhắn nháp giữa các thiết bị (Draft Message Sync)
 - [ ] Định dạng văn bản phong phú (Markdown: Đậm, Nghiêng, Gạch chân, Khung Code, Ẩn Spoiler)
 - [ ] Chuyển tiếp tin nhắn thông minh (Forward kèm hoặc bỏ tên người gửi gốc)

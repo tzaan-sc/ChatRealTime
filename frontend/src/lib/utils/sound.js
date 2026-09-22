@@ -1,61 +1,123 @@
-// Phát âm thanh thông báo "Pop" nhẹ nhàng khi có tin nhắn đến
-export function playNotificationSound() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
+import { get } from 'svelte/store';
+import { notificationSettings } from '../stores/notification';
 
-    const ctx = new AudioCtx();
+// Singleton AudioContext tái sử dụng, triệt tiêu memory leak
+let sharedAudioCtx = null;
+
+export function getAudioContext() {
+  if (typeof window === 'undefined') return null;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+    sharedAudioCtx = new AudioCtx();
+  }
+
+  if (sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+
+  return sharedAudioCtx;
+}
+
+// Tự động unlock AudioContext khi người dùng click lần đầu vào trang
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  };
+  window.addEventListener('click', unlockAudio, { passive: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true });
+}
+
+// Phát âm thanh thông báo tin nhắn
+// subtle = true: âm thanh rất nhẹ, êm dịu khi người dùng đang mở sẵn cuộc trò chuyện
+// subtle = false: âm thanh Pop trong trẻo khi có tin nhắn từ cuộc trò chuyện khác / tab ẩn
+export function playNotificationSound({ subtle = false, volume = null } = {}) {
+  try {
+    const settings = get(notificationSettings);
+    if (!settings.soundEnabled) return;
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'sine';
-    // Lướt từ nốt D5 (587.33Hz) lên A5 (880Hz) tạo cảm giác tin nhắn đến êm dịu
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
+    const masterVolume = volume !== null ? volume : (settings.soundVolume ?? 0.8);
 
-    // Âm lượng fade out mềm mại trong 120ms
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    if (subtle) {
+      // Âm click êm dịu: F5 (698Hz) -> C6 (1046Hz), thời lượng 60ms
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(698.46, now);
+      osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.05);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+      const targetGain = 0.04 * masterVolume;
+      gain.gain.setValueAtTime(targetGain, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
 
-    osc.start();
-    osc.stop(ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } else {
+      // Âm Pop vui tai: D5 (587Hz) -> A5 (880Hz), thời lượng 120ms
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+
+      const targetGain = 0.14 * masterVolume;
+      gain.gain.setValueAtTime(targetGain, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
   } catch (e) {
-    console.warn('Âm thanh thông báo chưa sẵn sàng:', e);
+    console.warn('Không thể phát âm thanh thông báo:', e);
   }
 }
 
-// Biến quản trị trạng thái chuông Web Audio
+// Biến quản trị trạng thái chuông cuộc gọi đến
 let ringtoneTimer = null;
-let ringtoneAudioCtx = null;
 
 // Phát chuông reo cho cuộc gọi đến (Incoming Call Ringtone)
 export function startRingtone() {
   stopRingtone();
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    ringtoneAudioCtx = new AudioCtx();
+    const settings = get(notificationSettings);
+    if (!settings.soundEnabled) return;
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
 
     const playChime = () => {
-      if (!ringtoneAudioCtx || ringtoneAudioCtx.state === 'closed') return;
-      const now = ringtoneAudioCtx.currentTime;
+      if (!ctx || ctx.state === 'closed') return;
+      const now = ctx.currentTime;
+      const masterVolume = settings.soundVolume ?? 0.8;
 
-      // Hợp âm 3 nốt chuông hiện đại: E5 (659Hz) -> G#5 (830Hz) -> B5 (987Hz)
+      // Hợp âm 4 nốt chuông hiện đại: E5 (659Hz) -> G#5 (830Hz) -> B5 (987Hz) -> E6 (1318Hz)
       const notes = [659.25, 830.61, 987.77, 1318.51];
       notes.forEach((freq, idx) => {
-        const osc = ringtoneAudioCtx.createOscillator();
-        const gain = ringtoneAudioCtx.createGain();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now + idx * 0.12);
 
-        gain.gain.setValueAtTime(0.1, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.12 * masterVolume, now + idx * 0.12);
         gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.35);
 
         osc.connect(gain);
-        gain.connect(ringtoneAudioCtx.destination);
+        gain.connect(ctx.destination);
 
         osc.start(now + idx * 0.12);
         osc.stop(now + idx * 0.12 + 0.35);
@@ -74,42 +136,34 @@ export function stopRingtone() {
     clearInterval(ringtoneTimer);
     ringtoneTimer = null;
   }
-  if (ringtoneAudioCtx) {
-    try {
-      ringtoneAudioCtx.close();
-    } catch (_) {}
-    ringtoneAudioCtx = null;
-  }
 }
 
-// Biến quản trị tiếng tút chờ máy (Outgoing Calling Tone)
+// Biến quản trị tiếng tút chờ máy khi gọi đi
 let callingTimer = null;
-let callingAudioCtx = null;
 
 // Phát tiếng "tút... tút..." khi đang gọi đi
 export function startCallingTone() {
   stopCallingTone();
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    callingAudioCtx = new AudioCtx();
+    const ctx = getAudioContext();
+    if (!ctx) return;
 
     const playBeep = () => {
-      if (!callingAudioCtx || callingAudioCtx.state === 'closed') return;
-      const now = callingAudioCtx.currentTime;
+      if (!ctx || ctx.state === 'closed') return;
+      const now = ctx.currentTime;
 
-      const osc = callingAudioCtx.createOscillator();
-      const gain = callingAudioCtx.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, now); // Chuẩn tần số 440Hz
+      osc.frequency.setValueAtTime(440, now);
 
       gain.gain.setValueAtTime(0.06, now);
       gain.gain.setValueAtTime(0.06, now + 0.8);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
 
       osc.connect(gain);
-      gain.connect(callingAudioCtx.destination);
+      gain.connect(ctx.destination);
 
       osc.start(now);
       osc.stop(now + 0.85);
@@ -127,11 +181,4 @@ export function stopCallingTone() {
     clearInterval(callingTimer);
     callingTimer = null;
   }
-  if (callingAudioCtx) {
-    try {
-      callingAudioCtx.close();
-    } catch (_) {}
-    callingAudioCtx = null;
-  }
 }
-

@@ -7,11 +7,29 @@
     activeGroup,
     selectGroup,
     userDirectory,
-    onlineUsers
+    onlineUsers,
+    groupUnreadCounts,
+    markConversationAsUnread,
+    markConversationAsRead
   } from '../stores/chat';
   import { currentUser, logout, token } from '../stores/auth';
+  import { notificationSettings, updateNotificationSettings } from '../stores/notification';
+  import { requestNotificationPermission, getNotificationPermission } from '../services/notification';
   import { apiRequest } from '../services/api';
-  import { MessageSquarePlus, Users, UserPlus, LogOut, Search, MessageSquare } from 'lucide-svelte';
+  import {
+    MessageSquarePlus,
+    Users,
+    UserPlus,
+    LogOut,
+    Search,
+    MessageSquare,
+    Bell,
+    BellOff,
+    MoreVertical,
+    Eye,
+    EyeOff
+  } from 'lucide-svelte';
+  import { onMount, onDestroy } from 'svelte';
   import CreateGroupModal from './CreateGroupModal.svelte';
 
   let showUsersModal = false;
@@ -20,6 +38,47 @@
   let usersError = '';
   let searchQuery = '';
   let activeTab = 'direct'; // 'direct' hoặc 'groups'
+  let activeContextMenuConvId = null;
+
+  // Tính tổng số tin nhắn chưa đọc
+  $: totalDirectUnread = $conversations.reduce((sum, item) => sum + (item.unread_count || 0), 0);
+  $: totalGroupUnread = Object.values($groupUnreadCounts).reduce((sum, count) => sum + (count || 0), 0);
+
+  async function toggleSound() {
+    const isEnabled = $notificationSettings.soundEnabled;
+    updateNotificationSettings({ soundEnabled: !isEnabled });
+    if (!isEnabled && getNotificationPermission() === 'default') {
+      await requestNotificationPermission();
+    }
+  }
+
+  function toggleContextMenu(convId, event) {
+    event.stopPropagation();
+    activeContextMenuConvId = activeContextMenuConvId === convId ? null : convId;
+  }
+
+  function handleMarkUnread(convItem, event) {
+    event.stopPropagation();
+    markConversationAsUnread(convItem.conversation.custom_id);
+    activeContextMenuConvId = null;
+  }
+
+  function handleMarkRead(convItem, event) {
+    event.stopPropagation();
+    markConversationAsRead(convItem.conversation.custom_id, convItem.other_user?.id);
+    activeContextMenuConvId = null;
+  }
+
+  function closeMenu() {
+    activeContextMenuConvId = null;
+  }
+
+  onMount(() => {
+    window.addEventListener('click', closeMenu);
+    return () => {
+      window.removeEventListener('click', closeMenu);
+    };
+  });
 
   // Lọc danh sách hội thoại 1-1
   $: filteredConversations = $conversations.filter((item) => {
@@ -72,6 +131,18 @@
       </div>
     </div>
     <div class="header-actions">
+      <button
+        class="icon-btn"
+        class:muted={!$notificationSettings.soundEnabled}
+        title={$notificationSettings.soundEnabled ? 'Chuông thông báo: BẬT (Bấm để tắt)' : 'Chuông thông báo: TẮT (Bấm để bật)'}
+        on:click={toggleSound}
+      >
+        {#if $notificationSettings.soundEnabled}
+          <Bell size={18} />
+        {:else}
+          <BellOff size={18} style="color: #ef4444;" />
+        {/if}
+      </button>
       <button class="icon-btn" title="Tạo nhóm trò chuyện mới" on:click={() => (showCreateGroupModal = true)}>
         <Users size={19} />
       </button>
@@ -103,6 +174,9 @@
     >
       <MessageSquare size={15} />
       <span>Cá nhân ({$conversations.length})</span>
+      {#if totalDirectUnread > 0}
+        <span class="tab-badge">{totalDirectUnread > 99 ? '99+' : totalDirectUnread}</span>
+      {/if}
     </button>
     <button
       class="tab-btn"
@@ -111,6 +185,9 @@
     >
       <Users size={15} />
       <span>Nhóm ({$userGroups.length})</span>
+      {#if totalGroupUnread > 0}
+        <span class="tab-badge">{totalGroupUnread > 99 ? '99+' : totalGroupUnread}</span>
+      {/if}
     </button>
   </div>
 
@@ -131,6 +208,7 @@
             tabindex="0"
             on:click={() => selectConversation(item)}
             on:keydown={(e) => e.key === 'Enter' && selectConversation(item)}
+            on:contextmenu={(e) => { e.preventDefault(); toggleContextMenu(item.conversation.custom_id, e); }}
           >
             <div class="avatar-container">
               <img src={item.other_user.avatar_url} alt="avatar" class="avatar" />
@@ -145,11 +223,39 @@
               </div>
               <div class="bottom-line">
                 <p class="snippet">{item.conversation.last_message || 'Bắt đầu cuộc trò chuyện'}</p>
-                {#if item.unread_count > 0}
-                  <span class="unread-badge">{item.unread_count}</span>
-                {/if}
+                <div class="badge-and-menu">
+                  {#if item.unread_count > 0}
+                    <span class="unread-badge animate-pulse">{item.unread_count > 99 ? '99+' : item.unread_count}</span>
+                  {/if}
+                  <button
+                    class="item-more-btn"
+                    title="Tùy chọn"
+                    on:click={(e) => toggleContextMenu(item.conversation.custom_id, e)}
+                  >
+                    <MoreVertical size={14} />
+                  </button>
+                </div>
               </div>
             </div>
+
+            <!-- Context Menu Dropdown -->
+            {#if activeContextMenuConvId === item.conversation.custom_id}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="item-context-menu" on:click|stopPropagation>
+                {#if item.unread_count > 0}
+                  <button class="context-item" on:click={(e) => handleMarkRead(item, e)}>
+                    <Eye size={14} />
+                    <span>Đánh dấu là đã đọc</span>
+                  </button>
+                {:else}
+                  <button class="context-item" on:click={(e) => handleMarkUnread(item, e)}>
+                    <EyeOff size={14} />
+                    <span>Đánh dấu là chưa đọc</span>
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       {/if}
@@ -184,6 +290,9 @@
               </div>
               <div class="bottom-line">
                 <p class="snippet member-tag">{group.member_ids?.length || 0} thành viên</p>
+                {#if ($groupUnreadCounts[group.id] || 0) > 0}
+                  <span class="unread-badge group-unread-badge">{$groupUnreadCounts[group.id]}</span>
+                {/if}
               </div>
             </div>
           </div>
@@ -391,6 +500,91 @@
     padding: 2px 6px;
     border-radius: 10px;
     font-weight: 700;
+  }
+  .group-unread-badge {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  }
+  .tab-badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 99px;
+    margin-left: 4px;
+    animation: badgePulse 2.5s infinite;
+  }
+  .badge-and-menu {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .item-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    opacity: 0;
+    transition: all 0.2s;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+  }
+  .conversation-item:hover .item-more-btn {
+    opacity: 1;
+  }
+  .item-more-btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .item-context-menu {
+    position: absolute;
+    right: 14px;
+    bottom: -32px;
+    z-index: 99;
+    background: rgba(17, 24, 39, 0.96);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    min-width: 175px;
+    animation: menuFadeIn 0.15s ease-out;
+  }
+  @keyframes menuFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .context-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.15s;
+  }
+  .context-item:hover {
+    background: rgba(139, 92, 246, 0.25);
+    color: #fff;
+  }
+  .animate-pulse {
+    animation: badgePulse 2s infinite;
+  }
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
   }
 
   .empty-state {

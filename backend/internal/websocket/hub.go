@@ -253,6 +253,9 @@ func (h *Hub) HandleClientEvent(client *Client, event models.WSEvent) {
 	case "chat:read":
 		h.handleMarkAsRead(client, event.Payload)
 
+	case "chat:unread":
+		h.handleMarkAsUnread(client, event.Payload)
+
 	case "call:request", "call:accept", "call:reject", "call:offer", "call:answer", "call:ice_candidate", "call:hangup":
 		h.handleCallSignaling(client, event.Event, event.Payload)
 
@@ -389,6 +392,18 @@ func (h *Hub) handleMarkAsRead(client *Client, rawPayload interface{}) {
 		return
 	}
 
+	// Nếu client không truyền partner_id, tự động bóc tách từ conversation_id (format: user1_user2)
+	if req.PartnerID == "" {
+		parts := strings.Split(req.ConversationID, "_")
+		if len(parts) == 2 {
+			if parts[0] == client.UserID {
+				req.PartnerID = parts[1]
+			} else if parts[1] == client.UserID {
+				req.PartnerID = parts[0]
+			}
+		}
+	}
+
 	ctx := context.Background()
 	// Đánh dấu đã đọc trong MongoDB
 	_ = h.msgRepo.MarkAsRead(ctx, req.ConversationID, client.UserID)
@@ -406,6 +421,24 @@ func (h *Hub) handleMarkAsRead(client *Client, rawPayload interface{}) {
 		partnerChannel := fmt.Sprintf("user:chat:%s", req.PartnerID)
 		h.redisClient.Publish(ctx, partnerChannel, string(bytes))
 	}
+}
+
+// handleMarkAsUnread xử lý đánh dấu chưa đọc tin nhắn
+func (h *Hub) handleMarkAsUnread(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+
+	var req struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil || req.ConversationID == "" {
+		return
+	}
+
+	ctx := context.Background()
+	_ = h.msgRepo.MarkAsUnread(ctx, req.ConversationID, client.UserID)
 }
 
 // handleReact xử lý thả hoặc hủy biểu tượng cảm xúc

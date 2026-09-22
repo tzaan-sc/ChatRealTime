@@ -66,6 +66,11 @@ func (s *ChatService) MarkMessagesAsRead(ctx context.Context, conversationID, cu
 	return s.msgRepo.MarkAsRead(ctx, conversationID, currentUserID)
 }
 
+// MarkMessagesAsUnread đánh dấu tin nhắn mới nhất là chưa đọc
+func (s *ChatService) MarkMessagesAsUnread(ctx context.Context, conversationID, currentUserID string) error {
+	return s.msgRepo.MarkAsUnread(ctx, conversationID, currentUserID)
+}
+
 // GetAllUsers lấy danh bạ để bắt đầu chat mới (trừ bản thân)
 func (s *ChatService) GetAllUsers(ctx context.Context, currentUserID string) ([]models.User, error) {
 	return s.userRepo.FindAllExcept(ctx, currentUserID)

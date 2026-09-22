@@ -81,6 +81,7 @@ func main() {
 			chat.GET("/conversations", chatHandler.GetConversations)
 			chat.GET("/messages/:conversation_id", chatHandler.GetMessages)
 			chat.POST("/messages/:conversation_id/read", chatHandler.MarkAsRead)
+			chat.POST("/messages/:conversation_id/unread", chatHandler.MarkAsUnread)
 			chat.GET("/users", chatHandler.GetUsers)
 		}
 

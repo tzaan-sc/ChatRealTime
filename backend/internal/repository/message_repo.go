@@ -106,6 +106,21 @@ func (r *MessageRepository) MarkAsRead(ctx context.Context, conversationID, rece
 	return err
 }
 
+// MarkAsUnread đánh dấu tin nhắn mới nhất trong cuộc trò chuyện là chưa đọc
+func (r *MessageRepository) MarkAsUnread(ctx context.Context, conversationID, receiverID string) error {
+	opts := options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}})
+	var latestMsg models.Message
+	err := r.collection.FindOne(ctx, bson.M{
+		"conversation_id": conversationID,
+		"receiver_id":     receiverID,
+	}, opts).Decode(&latestMsg)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.UpdateOne(ctx, bson.M{"_id": latestMsg.ID}, bson.M{"$set": bson.M{"is_read": false}})
+	return err
+}
+
 // GetByID lấy thông tin 1 tin nhắn theo ObjectID
 func (r *MessageRepository) GetByID(ctx context.Context, messageID primitive.ObjectID) (*models.Message, error) {
 	var msg models.Message

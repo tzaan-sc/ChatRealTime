@@ -1,8 +1,8 @@
 <script>
-  import { activeConversation, activeGroup, currentMessages, onlineUsers, typingUsers } from '../stores/chat';
+  import { activeConversation, activeGroup, currentMessages, onlineUsers, typingUsers, conversations } from '../stores/chat';
   import { currentUser } from '../stores/auth';
   import { wsService } from '../services/websocket';
-  import { afterUpdate } from 'svelte';
+  import { afterUpdate, onMount, onDestroy } from 'svelte';
   import {
     Send,
     Paperclip,
@@ -463,13 +463,52 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  // Gửi event xác nhận đã đọc khi đang mở xem khung chat (1-1)
-  $: if (!isGroup && $activeConversation && partnerID) {
+  // Hàm tự động kiểm tra và đánh dấu đã xem tin nhắn khi đang nhìn vào khung chat
+  function checkAndMarkAsRead() {
+    if (isGroup || !$activeConversation || !partnerID) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+    const convID = $activeConversation.conversation?.custom_id;
+    if (!convID) return;
+
+    // Gửi event WebSocket cho máy chủ và đối phương
     wsService.send('chat:read', {
-      conversation_id: $activeConversation.conversation.custom_id,
+      conversation_id: convID,
       partner_id: partnerID
     });
+
+    // Cập nhật trạng thái tin nhắn cục bộ
+    currentMessages.update((msgs) =>
+      msgs.map((m) => (m.sender_id === partnerID ? { ...m, is_read: true } : m))
+    );
+
+    // Xóa ngay unread_count trên danh sách hội thoại
+    conversations.update((list) =>
+      list.map((c) =>
+        c.conversation?.custom_id === convID ? { ...c, unread_count: 0 } : c
+      )
+    );
   }
+
+  // Tự động kiểm tra và đánh dấu đã xem khi chuyển hội thoại hoặc nhận tin nhắn mới
+  $: if (!isGroup && $activeConversation && partnerID && $currentMessages) {
+    checkAndMarkAsRead();
+  }
+
+  onMount(() => {
+    const handleVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndMarkAsRead();
+      }
+    };
+    window.addEventListener('focus', checkAndMarkAsRead);
+    document.addEventListener('visibilitychange', handleVisChange);
+
+    return () => {
+      window.removeEventListener('focus', checkAndMarkAsRead);
+      document.removeEventListener('visibilitychange', handleVisChange);
+    };
+  });
 </script>
 
 {#if !$activeConversation && !$activeGroup}
@@ -1089,8 +1128,21 @@
     font-style: italic;
   }
   .timestamp { font-size: 10px; opacity: 0.75; }
-  .receipt-icon { font-size: 11px; font-weight: 700; opacity: 0.6; }
-  .receipt-icon.seen { color: #38bdf8; opacity: 1; }
+  .receipt-icon {
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 0.6;
+    letter-spacing: -0.5px;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .receipt-icon.seen {
+    color: #38bdf8;
+    opacity: 1;
+    text-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+    transform: scale(1.08);
+  }
 
   /* Reaction Badges Container */
   .reactions-badge-container {

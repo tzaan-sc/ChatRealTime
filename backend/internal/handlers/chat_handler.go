@@ -56,6 +56,19 @@ func (h *ChatHandler) MarkAsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Đã đánh dấu đã đọc"})
 }
 
+// MarkAsUnread API đánh dấu chưa đọc
+func (h *ChatHandler) MarkAsUnread(c *gin.Context) {
+	convID := c.Param("conversation_id")
+	userID := c.GetString("user_id")
+
+	if err := h.chatService.MarkMessagesAsUnread(c.Request.Context(), convID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã đánh dấu chưa đọc"})
+}
+
 // GetUsers API lấy danh sách bạn bè để chọn chat
 func (h *ChatHandler) GetUsers(c *gin.Context) {
 	userID := c.GetString("user_id")
