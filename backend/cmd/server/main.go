@@ -36,6 +36,11 @@ func main() {
 	draftRepo := repository.NewDraftRepository(database.MongoDB)
 	inviteRepo := repository.NewInviteRepository(database.MongoDB)
 	joinReqRepo := repository.NewJoinRequestRepository(database.MongoDB)
+	pollRepo := repository.NewPollRepository(database.MongoDB)
+	eventRepo := repository.NewEventRepository(database.MongoDB)
+
+	// Gán pollRepo và eventRepo vào msgRepo để tự động populate khi đọc tin nhắn
+	msgRepo.SetPollAndEventRepos(pollRepo, eventRepo)
 
 	// 4. Khởi tạo WebSocket Hub và chạy ngầm
 	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo, groupRepo, userRepo, draftRepo)
@@ -44,7 +49,7 @@ func main() {
 	// 5. Khởi tạo Services
 	authService := service.NewAuthService(userRepo)
 	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
-	groupService := service.NewGroupService(groupRepo, userRepo, inviteRepo, joinReqRepo)
+	groupService := service.NewGroupService(groupRepo, userRepo, inviteRepo, joinReqRepo, pollRepo, eventRepo, msgRepo, database.RedisClient)
 
 	// Khởi tạo Background Scheduler Service (quét tin hẹn giờ & nhắc việc)
 	schedulerService := service.NewSchedulerService(database.RedisClient, msgRepo, convRepo, scheduledRepo, reminderRepo)
@@ -137,6 +142,16 @@ func main() {
 			groups.GET("/:id/join-requests", groupHandler.GetPendingJoinRequests)
 			groups.POST("/:id/join-requests/:requestId/approve", groupHandler.ApproveJoinRequest)
 			groups.POST("/:id/join-requests/:requestId/reject", groupHandler.RejectJoinRequest)
+
+			// Phase 3: Interactive Polls & Group Events
+			groups.POST("/:id/polls", groupHandler.CreatePoll)
+			groups.GET("/:id/polls/:pollId", groupHandler.GetPoll)
+			groups.POST("/:id/polls/:pollId/vote", groupHandler.VotePoll)
+			groups.POST("/:id/polls/:pollId/close", groupHandler.ClosePoll)
+			groups.POST("/:id/events", groupHandler.CreateEvent)
+			groups.GET("/:id/events", groupHandler.GetGroupEvents)
+			groups.POST("/:id/events/:eventId/rsvp", groupHandler.RSVPEvent)
+			groups.DELETE("/:id/events/:eventId", groupHandler.DeleteEvent)
 		}
 	}
 

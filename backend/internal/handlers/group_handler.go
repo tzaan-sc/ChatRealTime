@@ -428,4 +428,148 @@ func (h *GroupHandler) RejectJoinRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Đã từ chối đơn tham gia"})
 }
 
+// ============================================================================
+// PHASE 3: POLLS & GROUP EVENTS HANDLERS
+// ============================================================================
+
+// CreatePoll API tạo cuộc bình chọn mới
+func (h *GroupHandler) CreatePoll(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.CreatePollRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu khảo sát không hợp lệ: " + err.Error()})
+		return
+	}
+
+	poll, err := h.groupService.CreatePoll(c.Request.Context(), currentUserID, groupID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": poll})
+}
+
+// VotePoll API bỏ phiếu cho phương án
+func (h *GroupHandler) VotePoll(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	pollID := c.Param("pollId")
+
+	var req models.VotePollRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Phương án bình chọn không hợp lệ"})
+		return
+	}
+
+	poll, err := h.groupService.VotePoll(c.Request.Context(), currentUserID, groupID, pollID, req.OptionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": poll})
+}
+
+// ClosePoll API đóng cuộc bình chọn
+func (h *GroupHandler) ClosePoll(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	pollID := c.Param("pollId")
+
+	poll, err := h.groupService.ClosePoll(c.Request.Context(), currentUserID, groupID, pollID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": poll})
+}
+
+// GetPoll API lấy thông tin cuộc bình chọn
+func (h *GroupHandler) GetPoll(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	pollID := c.Param("pollId")
+
+	poll, err := h.groupService.GetPoll(c.Request.Context(), currentUserID, groupID, pollID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": poll})
+}
+
+// CreateEvent API tạo sự kiện mới trong nhóm
+func (h *GroupHandler) CreateEvent(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.CreateEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu sự kiện không hợp lệ: " + err.Error()})
+		return
+	}
+
+	event, err := h.groupService.CreateEvent(c.Request.Context(), currentUserID, groupID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": event})
+}
+
+// GetGroupEvents API lấy danh sách sự kiện sắp tới
+func (h *GroupHandler) GetGroupEvents(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	events, err := h.groupService.GetGroupEvents(c.Request.Context(), currentUserID, groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": events})
+}
+
+// RSVPEvent API phản hồi tham gia sự kiện
+func (h *GroupHandler) RSVPEvent(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	eventID := c.Param("eventId")
+
+	var req models.RSVPEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Trạng thái phản hồi không hợp lệ"})
+		return
+	}
+
+	event, err := h.groupService.RSVPEvent(c.Request.Context(), currentUserID, groupID, eventID, req.Status)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": event})
+}
+
+// DeleteEvent API xóa sự kiện
+func (h *GroupHandler) DeleteEvent(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	eventID := c.Param("eventId")
+
+	if err := h.groupService.DeleteEvent(c.Request.Context(), currentUserID, groupID, eventID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã xóa sự kiện"})
+}
+
 

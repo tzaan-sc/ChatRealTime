@@ -14,12 +14,19 @@ import (
 
 type MessageRepository struct {
 	collection *mongo.Collection
+	pollRepo   *PollRepository
+	eventRepo  *EventRepository
 }
 
 func NewMessageRepository(db *mongo.Database) *MessageRepository {
 	return &MessageRepository{
 		collection: db.Collection("messages"),
 	}
+}
+
+func (r *MessageRepository) SetPollAndEventRepos(pollRepo *PollRepository, eventRepo *EventRepository) {
+	r.pollRepo = pollRepo
+	r.eventRepo = eventRepo
 }
 
 // Create chèn tin nhắn mới
@@ -95,6 +102,24 @@ func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, chan
 
 	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	// Tải chi tiết Poll & Event mới nhất nếu có
+	for i := range messages {
+		if messages[i].PollID != "" && r.pollRepo != nil {
+			if pOID, err := primitive.ObjectIDFromHex(messages[i].PollID); err == nil {
+				if p, err := r.pollRepo.GetByID(ctx, pOID); err == nil {
+					messages[i].Poll = p
+				}
+			}
+		}
+		if messages[i].EventID != "" && r.eventRepo != nil {
+			if eOID, err := primitive.ObjectIDFromHex(messages[i].EventID); err == nil {
+				if ev, err := r.eventRepo.GetByID(ctx, eOID); err == nil {
+					messages[i].Event = ev
+				}
+			}
+		}
 	}
 
 	return messages, nil

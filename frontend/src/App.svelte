@@ -22,7 +22,10 @@
     activeGroup,
     loadDrafts,
     updatePinnedLocally,
-    updateThreadCountLocally
+    updateThreadCountLocally,
+    updatePollLocally,
+    updateEventLocally,
+    removeEventLocally
   } from './lib/stores/chat';
   import { playNotificationSound } from './lib/utils/sound';
   import { addToast } from './lib/stores/notification';
@@ -177,6 +180,18 @@
         if (payload?.root_id) {
           updateThreadCountLocally(payload.root_id, payload.thread_count);
         }
+        break;
+
+      case 'group:poll_updated':
+        updatePollLocally(payload);
+        break;
+
+      case 'group:event_updated':
+        updateEventLocally(payload);
+        break;
+
+      case 'group:event_deleted':
+        removeEventLocally(payload?.event_id);
         break;
 
       case 'reminder:alert':

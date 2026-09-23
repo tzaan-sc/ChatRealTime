@@ -13,6 +13,7 @@ export const currentMessages = writable([]);
 export const userDirectory = writable([]);
 export const pinnedMessages = writable([]);
 export const drafts = writable({}); // map target_id -> content string
+export const groupEvents = writable([]); // danh sách sự kiện nhóm hiện tại
 
 // Set các User ID đang online (Ví dụ: Set(['id1', 'id2']))
 export const onlineUsers = writable(new Set());
@@ -307,6 +308,116 @@ export async function rejectJoinRequest(groupId, requestId) {
   const t = get(token);
   const res = await apiRequest(`/groups/${groupId}/join-requests/${requestId}/reject`, 'POST', null, t);
   return res;
+}
+
+// ==========================================
+// PHASE 3: POLLS & GROUP EVENTS
+// ==========================================
+
+// Tạo cuộc bình chọn mới
+export async function createPoll(groupId, pollData) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/polls`, 'POST', pollData, t);
+  return res.data;
+}
+
+// Bỏ phiếu bình chọn
+export async function votePoll(groupId, pollId, optionId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/polls/${pollId}/vote`, 'POST', { option_id: optionId }, t);
+  if (res.data) {
+    updatePollLocally(res.data);
+  }
+  return res.data;
+}
+
+// Đóng cuộc bình chọn
+export async function closePoll(groupId, pollId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/polls/${pollId}/close`, 'POST', null, t);
+  if (res.data) {
+    updatePollLocally(res.data);
+  }
+  return res.data;
+}
+
+// Lấy thông tin cuộc bình chọn
+export async function getPoll(groupId, pollId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/polls/${pollId}`, 'GET', null, t);
+  return res.data;
+}
+
+// Cập nhật Poll trong danh sách tin nhắn hiện tại
+export function updatePollLocally(updatedPoll) {
+  if (!updatedPoll || !updatedPoll.id) return;
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.poll_id === updatedPoll.id || m.poll?.id === updatedPoll.id) {
+        return { ...m, poll: updatedPoll };
+      }
+      return m;
+    })
+  );
+}
+
+// Tạo sự kiện nhóm mới
+export async function createGroupEvent(groupId, eventData) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/events`, 'POST', eventData, t);
+  if (res.data) {
+    groupEvents.update((events) => [res.data, ...events]);
+  }
+  return res.data;
+}
+
+// Lấy danh sách sự kiện nhóm
+export async function getGroupEvents(groupId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/events`, 'GET', null, t);
+  const list = res.data || [];
+  groupEvents.set(list);
+  return list;
+}
+
+// Phản hồi tham gia sự kiện (RSVP)
+export async function rsvpGroupEvent(groupId, eventId, status) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/events/${eventId}/rsvp`, 'POST', { status }, t);
+  if (res.data) {
+    updateEventLocally(res.data);
+  }
+  return res.data;
+}
+
+// Xóa sự kiện nhóm
+export async function deleteGroupEvent(groupId, eventId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/events/${eventId}`, 'DELETE', null, t);
+  removeEventLocally(eventId);
+  return res;
+}
+
+// Cập nhật Event trong store và tin nhắn
+export function updateEventLocally(updatedEvent) {
+  if (!updatedEvent || !updatedEvent.id) return;
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.event_id === updatedEvent.id || m.event?.id === updatedEvent.id) {
+        return { ...m, event: updatedEvent };
+      }
+      return m;
+    })
+  );
+  groupEvents.update((events) =>
+    events.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
+  );
+}
+
+// Xóa Event khỏi store
+export function removeEventLocally(eventId) {
+  if (!eventId) return;
+  groupEvents.update((events) => events.filter((e) => e.id !== eventId));
 }
 
 // Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện 1-1

@@ -5,7 +5,9 @@
     selectChannel,
     deleteChannel,
     deleteCategory,
-    channelUnreadCounts
+    channelUnreadCounts,
+    groupEvents,
+    getGroupEvents
   } from '../stores/chat';
   import { currentUser } from '../stores/auth';
   import {
@@ -16,15 +18,22 @@
     Plus,
     Trash2,
     Settings,
-    Users
+    Users,
+    Calendar
   } from 'lucide-svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
+  import GroupEventsModal from './GroupEventsModal.svelte';
 
   export let onOpenMembersModal = () => {};
 
   let showCreateModal = false;
+  let showEventsModal = false;
   let targetCategoryID = '';
   let collapsedCategories = {}; // map catID -> boolean
+
+  $: if ($activeGroup?.id) {
+    getGroupEvents($activeGroup.id);
+  }
 
   $: amIAdmin =
     $activeGroup?.creator_id === $currentUser?.id ||
@@ -104,6 +113,17 @@
       {/if}
     </div>
   </div>
+
+  <!-- Group Events Banner / Trigger -->
+  <button class="events-trigger-btn" on:click={() => (showEventsModal = true)}>
+    <div class="events-trigger-left">
+      <Calendar size={14} class="event-cal-icon" />
+      <span>Sự kiện nhóm</span>
+    </div>
+    {#if $groupEvents.length > 0}
+      <span class="events-count-badge">{$groupEvents.length}</span>
+    {/if}
+  </button>
 
   <!-- Channel Navigation Tree -->
   <div class="channel-tree">
@@ -249,6 +269,14 @@
   />
 {/if}
 
+{#if showEventsModal && $activeGroup}
+  <GroupEventsModal
+    groupID={$activeGroup.id}
+    {channels}
+    onClose={() => (showEventsModal = false)}
+  />
+{/if}
+
 <style>
   .channel-sidebar {
     width: 240px;
@@ -312,6 +340,43 @@
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .events-trigger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 12px 4px 12px;
+    padding: 7px 10px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .events-trigger-btn:hover {
+    background: rgba(16, 185, 129, 0.15);
+    color: #fff;
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+  .events-trigger-left {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .event-cal-icon {
+    color: #34d399;
+  }
+  .events-count-badge {
+    background: #10b981;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
   }
 
   .tool-btn {

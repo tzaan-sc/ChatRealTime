@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"chatrealtime-backend/internal/models"
 	"chatrealtime-backend/internal/repository"
 
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -17,6 +19,10 @@ type GroupService struct {
 	userRepo    *repository.UserRepository
 	inviteRepo  *repository.InviteRepository
 	joinReqRepo *repository.JoinRequestRepository
+	pollRepo    *repository.PollRepository
+	eventRepo   *repository.EventRepository
+	messageRepo *repository.MessageRepository
+	redisClient *redis.Client
 }
 
 func NewGroupService(
@@ -24,12 +30,20 @@ func NewGroupService(
 	userRepo *repository.UserRepository,
 	inviteRepo *repository.InviteRepository,
 	joinReqRepo *repository.JoinRequestRepository,
+	pollRepo *repository.PollRepository,
+	eventRepo *repository.EventRepository,
+	messageRepo *repository.MessageRepository,
+	redisClient *redis.Client,
 ) *GroupService {
 	return &GroupService{
 		groupRepo:   groupRepo,
 		userRepo:    userRepo,
 		inviteRepo:  inviteRepo,
 		joinReqRepo: joinReqRepo,
+		pollRepo:    pollRepo,
+		eventRepo:   eventRepo,
+		messageRepo: messageRepo,
+		redisClient: redisClient,
 	}
 }
 
@@ -736,5 +750,394 @@ func (s *GroupService) RejectJoinRequest(ctx context.Context, operatorID, groupI
 	return s.joinReqRepo.UpdateStatus(ctx, reqOID, "rejected", opOID)
 }
 
+// broadcastGroup phát sóng sự kiện qua Redis Pub/Sub đến tất cả thành viên trong nhóm
+func (s *GroupService) broadcastGroup(groupID string, eventName string, payload interface{}) {
+	if s.redisClient == nil {
+		return
+	}
+	event := models.WSEvent{
+		Event:   eventName,
+		Payload: payload,
+	}
+	bytes, err := json.Marshal(event)
+	if err == nil {
+		s.redisClient.Publish(context.Background(), fmt.Sprintf("group:chat:%s", groupID), string(bytes))
+	}
+}
 
+// ============================================================================
+// PHASE 3: POLLS & QUIZZES
+// ============================================================================
 
+// CreatePoll tạo một cuộc bình chọn mới trong nhóm/kênh
+func (s *GroupService) CreatePoll(ctx context.Context, userID, groupID string, req models.CreatePollRequest) (*models.Poll, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupOID)
+	if err != nil {
+		return nil, errors.New("nhóm không tồn tại")
+	}
+
+	// Kiểm tra xem người dùng có trong nhóm không
+	isMember := false
+	for _, m := range group.MemberIDs {
+		if m == userOID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return nil, errors.New("bạn không phải thành viên của nhóm")
+	}
+
+	// Kiểm tra cấm chat
+	if group.MutedMembers != nil {
+		if mutedUntil, ok := group.MutedMembers[userID]; ok && mutedUntil.After(time.Now()) {
+			return nil, errors.New("bạn đang bị cấm gửi tin trong nhóm này")
+		}
+	}
+
+	channelID := req.ChannelID
+	if channelID == "" && len(group.Channels) > 0 {
+		channelID = group.Channels[0].ID
+	}
+	for _, ch := range group.Channels {
+		if ch.ID == channelID && ch.Type == "announcement" {
+			canPost, _ := s.groupRepo.IsModeratorOrAdmin(ctx, groupOID, userOID)
+			if !canPost {
+				return nil, errors.New("kênh thông báo chỉ dành cho quản trị viên đăng bài")
+			}
+		}
+	}
+
+	user, _ := s.userRepo.FindByID(ctx, userID)
+	creatorName := "Thành viên"
+	creatorAvatar := ""
+	if user != nil {
+		creatorName = user.DisplayName
+		if creatorName == "" {
+			creatorName = user.Username
+		}
+		creatorAvatar = user.AvatarURL
+	}
+
+	options := make([]models.PollOption, 0, len(req.Options))
+	for i, optText := range req.Options {
+		options = append(options, models.PollOption{
+			ID:        fmt.Sprintf("opt_%d", i+1),
+			Text:      optText,
+			VoterIDs:  []string{},
+			VoteCount: 0,
+		})
+	}
+
+	poll := &models.Poll{
+		GroupID:        groupOID,
+		ChannelID:      channelID,
+		Question:       req.Question,
+		Options:        options,
+		MultipleChoice: req.MultipleChoice,
+		IsAnonymous:    req.IsAnonymous,
+		IsClosed:       false,
+		TotalVotes:     0,
+		CreatedBy:      userOID,
+		CreatorName:    creatorName,
+	}
+
+	if err := s.pollRepo.Create(ctx, poll); err != nil {
+		return nil, err
+	}
+
+	// Tạo Message đại diện trong kênh chat
+	msg := &models.Message{
+		GroupID:      groupID,
+		ChannelID:    channelID,
+		SenderID:     userID,
+		SenderName:   creatorName,
+		SenderAvatar: creatorAvatar,
+		Content:      req.Question,
+		Type:         "poll",
+		PollID:       poll.ID.Hex(),
+		Poll:         poll,
+		CreatedAt:    time.Now(),
+	}
+	if err := s.messageRepo.Create(ctx, msg); err == nil {
+		s.pollRepo.UpdateMessageID(ctx, poll.ID, msg.ID.Hex())
+		s.broadcastGroup(groupID, "group:receive", msg)
+	}
+
+	return poll, nil
+}
+
+// VotePoll thực hiện bỏ phiếu trong bình chọn
+func (s *GroupService) VotePoll(ctx context.Context, userID, groupID, pollID, optionID string) (*models.Poll, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+	pollOID, err := primitive.ObjectIDFromHex(pollID)
+	if err != nil {
+		return nil, errors.New("poll_id không hợp lệ")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupOID)
+	if err != nil {
+		return nil, errors.New("nhóm không tồn tại")
+	}
+
+	isMember := false
+	for _, m := range group.MemberIDs {
+		if m == userOID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return nil, errors.New("bạn không phải thành viên của nhóm")
+	}
+
+	// Kiểm tra cấm chat
+	if group.MutedMembers != nil {
+		if mutedUntil, ok := group.MutedMembers[userID]; ok && mutedUntil.After(time.Now()) {
+			return nil, errors.New("bạn đang bị cấm tương tác trong nhóm này")
+		}
+	}
+
+	updatedPoll, err := s.pollRepo.Vote(ctx, pollOID, userID, optionID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.broadcastGroup(groupID, "group:poll_updated", updatedPoll)
+	return updatedPoll, nil
+}
+
+// ClosePoll đóng cuộc bình chọn
+func (s *GroupService) ClosePoll(ctx context.Context, userID, groupID, pollID string) (*models.Poll, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+	pollOID, err := primitive.ObjectIDFromHex(pollID)
+	if err != nil {
+		return nil, errors.New("poll_id không hợp lệ")
+	}
+
+	poll, err := s.pollRepo.GetByID(ctx, pollOID)
+	if err != nil {
+		return nil, err
+	}
+
+	canManage, _ := s.groupRepo.IsModeratorOrAdmin(ctx, groupOID, userOID)
+	if poll.CreatedBy != userOID && !canManage {
+		return nil, errors.New("bạn không có quyền đóng cuộc bình chọn này")
+	}
+
+	closedPoll, err := s.pollRepo.Close(ctx, pollOID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.broadcastGroup(groupID, "group:poll_updated", closedPoll)
+	return closedPoll, nil
+}
+
+// GetPoll lấy thông tin chi tiết cuộc bình chọn
+func (s *GroupService) GetPoll(ctx context.Context, userID, groupID, pollID string) (*models.Poll, error) {
+	pollOID, err := primitive.ObjectIDFromHex(pollID)
+	if err != nil {
+		return nil, errors.New("poll_id không hợp lệ")
+	}
+	return s.pollRepo.GetByID(ctx, pollOID)
+}
+
+// ============================================================================
+// PHASE 3: GROUP EVENTS
+// ============================================================================
+
+// CreateEvent tạo sự kiện mới trong nhóm
+func (s *GroupService) CreateEvent(ctx context.Context, userID, groupID string, req models.CreateEventRequest) (*models.GroupEvent, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupOID)
+	if err != nil {
+		return nil, errors.New("nhóm không tồn tại")
+	}
+
+	isMember := false
+	for _, m := range group.MemberIDs {
+		if m == userOID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return nil, errors.New("bạn không phải thành viên của nhóm")
+	}
+
+	user, _ := s.userRepo.FindByID(ctx, userID)
+	creatorName := "Thành viên"
+	creatorAvatar := ""
+	if user != nil {
+		creatorName = user.DisplayName
+		if creatorName == "" {
+			creatorName = user.Username
+		}
+		creatorAvatar = user.AvatarURL
+	}
+
+	channelID := req.ChannelID
+	if channelID == "" && len(group.Channels) > 0 {
+		channelID = group.Channels[0].ID
+	}
+
+	event := &models.GroupEvent{
+		GroupID:       groupOID,
+		ChannelID:     channelID,
+		Title:         req.Title,
+		Description:   req.Description,
+		Location:      req.Location,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+		CreatedBy:     userOID,
+		CreatorName:   creatorName,
+		CreatorAvatar: creatorAvatar,
+		Attendees: []models.EventAttendee{
+			{
+				UserID:     userID,
+				UserName:   creatorName,
+				UserAvatar: creatorAvatar,
+				Status:     "going",
+				UpdatedAt:  time.Now(),
+			},
+		},
+		Status: "upcoming",
+	}
+
+	if err := s.eventRepo.Create(ctx, event); err != nil {
+		return nil, err
+	}
+
+	// Đăng một thẻ tin nhắn sự kiện vào kênh chat
+	msg := &models.Message{
+		GroupID:      groupID,
+		ChannelID:    channelID,
+		SenderID:     userID,
+		SenderName:   creatorName,
+		SenderAvatar: creatorAvatar,
+		Content:      fmt.Sprintf("📅 Sự kiện mới: %s", req.Title),
+		Type:         "event",
+		EventID:      event.ID.Hex(),
+		Event:        event,
+		CreatedAt:    time.Now(),
+	}
+	if err := s.messageRepo.Create(ctx, msg); err == nil {
+		s.eventRepo.UpdateMessageID(ctx, event.ID, msg.ID.Hex())
+		s.broadcastGroup(groupID, "group:receive", msg)
+	}
+
+	s.broadcastGroup(groupID, "group:event_created", event)
+	return event, nil
+}
+
+// GetGroupEvents lấy danh sách sự kiện sắp tới của nhóm
+func (s *GroupService) GetGroupEvents(ctx context.Context, userID, groupID string) ([]models.GroupEvent, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	return s.eventRepo.GetUpcomingByGroup(ctx, groupOID)
+}
+
+// RSVPEvent phản hồi tham gia sự kiện
+func (s *GroupService) RSVPEvent(ctx context.Context, userID, groupID, eventID, status string) (*models.GroupEvent, error) {
+	if _, err := primitive.ObjectIDFromHex(userID); err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+	eventOID, err := primitive.ObjectIDFromHex(eventID)
+	if err != nil {
+		return nil, errors.New("event_id không hợp lệ")
+	}
+
+	user, _ := s.userRepo.FindByID(ctx, userID)
+	userName := userID
+	userAvatar := ""
+	if user != nil {
+		userName = user.DisplayName
+		if userName == "" {
+			userName = user.Username
+		}
+		userAvatar = user.AvatarURL
+	}
+
+	attendee := models.EventAttendee{
+		UserID:     userID,
+		UserName:   userName,
+		UserAvatar: userAvatar,
+		Status:     status,
+		UpdatedAt:  time.Now(),
+	}
+
+	updatedEvent, err := s.eventRepo.RSVP(ctx, eventOID, attendee)
+	if err != nil {
+		return nil, err
+	}
+
+	s.broadcastGroup(groupID, "group:event_updated", updatedEvent)
+	return updatedEvent, nil
+}
+
+// DeleteEvent hủy sự kiện
+func (s *GroupService) DeleteEvent(ctx context.Context, userID, groupID, eventID string) error {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return errors.New("user_id không hợp lệ")
+	}
+	eventOID, err := primitive.ObjectIDFromHex(eventID)
+	if err != nil {
+		return errors.New("event_id không hợp lệ")
+	}
+
+	event, err := s.eventRepo.GetByID(ctx, eventOID)
+	if err != nil {
+		return err
+	}
+
+	canManage, _ := s.groupRepo.IsModeratorOrAdmin(ctx, groupOID, userOID)
+	if event.CreatedBy != userOID && !canManage {
+		return errors.New("bạn không có quyền xóa sự kiện này")
+	}
+
+	if err := s.eventRepo.Delete(ctx, eventOID); err != nil {
+		return err
+	}
+
+	s.broadcastGroup(groupID, "group:event_deleted", map[string]string{"event_id": eventID})
+	return nil
+}

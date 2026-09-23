@@ -38,7 +38,8 @@
     BellOff,
     Bookmark,
     Hash,
-    Megaphone
+    Megaphone,
+    BarChart2
   } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
@@ -51,6 +52,9 @@
   import ForwardModal from './ForwardModal.svelte';
   import ScheduleModal from './ScheduleModal.svelte';
   import ReminderModal from './ReminderModal.svelte';
+  import CreatePollModal from './CreatePollModal.svelte';
+  import PollCard from './PollCard.svelte';
+  import EventCard from './EventCard.svelte';
   import { startCall } from '../stores/call';
 
   const QUICK_EMOJIS = ['❤️', '😂', '👍', '😢', '🔥', '🚀'];
@@ -93,6 +97,7 @@
 
   // Trạng thái Modal Thành viên nhóm
   let showGroupMembersModal = false;
+  let showCreatePollModal = false;
 
   $: isGroup = !!$activeGroup;
   $: partnerID = $activeConversation?.other_user?.id;
@@ -911,6 +916,10 @@
                 <span class="deleted-icon">🚫</span>
                 <em>Tin nhắn đã được thu hồi</em>
               </div>
+            {:else if msg.type === 'poll' || msg.poll_id}
+              <PollCard message={msg} />
+            {:else if msg.type === 'event' || msg.event_id}
+              <EventCard message={msg} />
             {:else if msg.type === 'image'}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <div
@@ -1139,6 +1148,17 @@
             >
               <Clock size={18} />
             </button>
+
+            <!-- Nút Tạo Bình Chọn Khảo Sát (Chỉ trong nhóm) -->
+            {#if isGroup}
+              <button
+                class="action-icon-btn"
+                on:click={() => (showCreatePollModal = true)}
+                title="Tạo cuộc bình chọn / khảo sát ý kiến"
+              >
+                <BarChart2 size={18} />
+              </button>
+            {/if}
           {/if}
 
           <textarea
@@ -1250,6 +1270,15 @@
       showReminderModal = false;
       messageForReminder = null;
     }}
+  />
+{/if}
+
+<!-- Modal Tạo Bình Chọn Khảo Sát -->
+{#if showCreatePollModal && $activeGroup}
+  <CreatePollModal
+    groupID={$activeGroup.id}
+    channelID={$activeChannel?.id || ''}
+    onClose={() => (showCreatePollModal = false)}
   />
 {/if}
 {/if}

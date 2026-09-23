@@ -50,6 +50,10 @@ type Message struct {
 	ThreadRootID   string             `bson:"thread_root_id,omitempty" json:"thread_root_id,omitempty"`
 	ThreadCount    int                `bson:"thread_count" json:"thread_count"`
 	ForwardFrom    *ForwardSnippet    `bson:"forward_from,omitempty" json:"forward_from,omitempty"`
+	PollID         string             `bson:"poll_id,omitempty" json:"poll_id,omitempty"`
+	Poll           *Poll              `bson:"poll,omitempty" json:"poll,omitempty"`
+	EventID        string             `bson:"event_id,omitempty" json:"event_id,omitempty"`
+	Event          *GroupEvent        `bson:"event,omitempty" json:"event,omitempty"`
 	IsDeleted      bool               `bson:"is_deleted" json:"is_deleted"`
 	IsEdited       bool               `bson:"is_edited" json:"is_edited"`
 	IsRead         bool               `bson:"is_read" json:"is_read"`
