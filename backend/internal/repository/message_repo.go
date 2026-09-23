@@ -39,7 +39,14 @@ func (r *MessageRepository) GetByConversation(ctx context.Context, conversationI
 		SetLimit(limit).
 		SetSkip(offset)
 
-	cursor, err := r.collection.Find(ctx, bson.M{"conversation_id": conversationID}, opts)
+	filter := bson.M{
+		"conversation_id": conversationID,
+		"$or": []bson.M{
+			{"thread_root_id": ""},
+			{"thread_root_id": bson.M{"$exists": false}},
+		},
+	}
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +72,14 @@ func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, limi
 		SetLimit(limit).
 		SetSkip(offset)
 
-	cursor, err := r.collection.Find(ctx, bson.M{"group_id": groupID}, opts)
+	filter := bson.M{
+		"group_id": groupID,
+		"$or": []bson.M{
+			{"thread_root_id": ""},
+			{"thread_root_id": bson.M{"$exists": false}},
+		},
+	}
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -195,4 +209,79 @@ func (r *MessageRepository) EditMessage(ctx context.Context, messageID primitive
 	_, err := r.collection.UpdateOne(ctx, filter, update)
 	return err
 }
+
+// PinMessage ghim tin nhắn trong cuộc trò chuyện hoặc nhóm
+func (r *MessageRepository) PinMessage(ctx context.Context, messageID primitive.ObjectID, userID string) error {
+	now := time.Now()
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": messageID}, bson.M{
+		"$set": bson.M{
+			"is_pinned": true,
+			"pinned_at": &now,
+			"pinned_by": userID,
+		},
+	})
+	return err
+}
+
+// UnpinMessage gỡ ghim tin nhắn
+func (r *MessageRepository) UnpinMessage(ctx context.Context, messageID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": messageID}, bson.M{
+		"$set": bson.M{
+			"is_pinned": false,
+			"pinned_at": nil,
+			"pinned_by": "",
+		},
+	})
+	return err
+}
+
+// GetPinnedMessages lấy tất cả tin nhắn đã ghim trong một cuộc trò chuyện hoặc nhóm
+func (r *MessageRepository) GetPinnedMessages(ctx context.Context, targetID string, isGroup bool) ([]models.Message, error) {
+	filter := bson.M{
+		"is_pinned":  true,
+		"is_deleted": false,
+	}
+	if isGroup {
+		filter["group_id"] = targetID
+	} else {
+		filter["conversation_id"] = targetID
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "pinned_at", Value: -1}})
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []models.Message
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+// GetThreadMessages lấy danh sách tin nhắn phản hồi trong một luồng
+func (r *MessageRepository) GetThreadMessages(ctx context.Context, rootMessageID string) ([]models.Message, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"thread_root_id": rootMessageID, "is_deleted": false}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []models.Message
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+// IncrementThreadCount tăng số đếm phản hồi trong luồng của tin nhắn gốc
+func (r *MessageRepository) IncrementThreadCount(ctx context.Context, rootMessageID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": rootMessageID}, bson.M{
+		"$inc": bson.M{"thread_count": 1},
+	})
+	return err
+}
+
 

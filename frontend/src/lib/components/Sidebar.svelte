@@ -10,7 +10,9 @@
     onlineUsers,
     groupUnreadCounts,
     markConversationAsUnread,
-    markConversationAsRead
+    markConversationAsRead,
+    drafts,
+    openSavedMessages
   } from '../stores/chat';
   import { currentUser, logout, token } from '../stores/auth';
   import { notificationSettings, updateNotificationSettings } from '../stores/notification';
@@ -27,7 +29,8 @@
     BellOff,
     MoreVertical,
     Eye,
-    EyeOff
+    EyeOff,
+    Bookmark
   } from 'lucide-svelte';
   import { onMount, onDestroy } from 'svelte';
   import CreateGroupModal from './CreateGroupModal.svelte';
@@ -194,6 +197,30 @@
   <!-- List View -->
   <div class="conversation-list">
     {#if activeTab === 'direct'}
+      <!-- Hộp thư lưu trữ cá nhân (Saved Messages / Cloud Notebook) -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <div
+        class="conversation-item saved-messages-item"
+        class:active={$activeConversation?.is_saved}
+        role="button"
+        tabindex="0"
+        on:click={openSavedMessages}
+        title="Hộp thư lưu trữ cá nhân & Ghi chú đám mây"
+      >
+        <div class="avatar-container saved-avatar-wrap">
+          <Bookmark size={18} class="saved-icon" />
+        </div>
+        <div class="content">
+          <div class="top-line">
+            <span class="name saved-name">Tin nhắn đã lưu</span>
+            <span class="time">Cloud</span>
+          </div>
+          <div class="bottom-line">
+            <p class="snippet saved-snippet">Ghi chú & Lưu trữ cá nhân</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Danh sách Chat 1-1 -->
       {#if filteredConversations.length === 0}
         <div class="empty-state">
@@ -201,6 +228,7 @@
         </div>
       {:else}
         {#each filteredConversations as item}
+          {@const draftText = $drafts[item.conversation?.custom_id]}
           <div
             class="conversation-item"
             class:active={$activeConversation?.conversation?.custom_id === item.conversation.custom_id}
@@ -222,7 +250,13 @@
                 </span>
               </div>
               <div class="bottom-line">
-                <p class="snippet">{item.conversation.last_message || 'Bắt đầu cuộc trò chuyện'}</p>
+                <p class="snippet">
+                  {#if draftText}
+                    <span class="draft-tag">[Bản nháp]</span> {draftText}
+                  {:else}
+                    {item.conversation.last_message || 'Bắt đầu cuộc trò chuyện'}
+                  {/if}
+                </p>
                 <div class="badge-and-menu">
                   {#if item.unread_count > 0}
                     <span class="unread-badge animate-pulse">{item.unread_count > 99 ? '99+' : item.unread_count}</span>
@@ -270,6 +304,7 @@
         </div>
       {:else}
         {#each filteredGroups as group}
+          {@const draftText = $drafts[group.id]}
           <div
             class="conversation-item group-item"
             class:active={$activeGroup?.id === group.id}
@@ -289,7 +324,13 @@
                 </span>
               </div>
               <div class="bottom-line">
-                <p class="snippet member-tag">{group.member_ids?.length || 0} thành viên</p>
+                <p class="snippet member-tag">
+                  {#if draftText}
+                    <span class="draft-tag">[Bản nháp]</span> {draftText}
+                  {:else}
+                    {group.member_ids?.length || 0} thành viên
+                  {/if}
+                </p>
                 {#if ($groupUnreadCounts[group.id] || 0) > 0}
                   <span class="unread-badge group-unread-badge">{$groupUnreadCounts[group.id]}</span>
                 {/if}
@@ -462,6 +503,39 @@
   }
   .conversation-item:hover { background: rgba(255, 255, 255, 0.05); }
   .conversation-item.active { background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); }
+
+  .saved-messages-item {
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px dashed rgba(56, 189, 248, 0.3);
+    margin-bottom: 8px;
+  }
+  .saved-messages-item:hover {
+    background: rgba(56, 189, 248, 0.15);
+  }
+  .saved-avatar-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .saved-icon {
+    color: #fff;
+  }
+  .saved-name {
+    color: #38bdf8;
+    font-weight: 600;
+  }
+  .saved-snippet {
+    color: #94a3b8;
+    font-size: 11.5px;
+  }
+  .draft-tag {
+    color: #f43f5e;
+    font-weight: 600;
+  }
 
   .avatar-container { position: relative; }
   .avatar { width: 44px; height: 44px; border-radius: 50%; }

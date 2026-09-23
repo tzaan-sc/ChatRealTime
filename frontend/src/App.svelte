@@ -19,7 +19,10 @@
     selectConversation,
     selectGroup,
     activeConversation,
-    activeGroup
+    activeGroup,
+    loadDrafts,
+    updatePinnedLocally,
+    updateThreadCountLocally
   } from './lib/stores/chat';
   import { playNotificationSound } from './lib/utils/sound';
   import { addToast } from './lib/stores/notification';
@@ -45,6 +48,7 @@
     wsService.connect($token);
     loadConversations();
     loadUserGroups();
+    loadDrafts();
 
     clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
@@ -70,10 +74,11 @@
         appendMessage(payload);
 
         if (!isFromMe) {
+          const isSilent = payload.is_silent;
           if (isViewingThisChat && isTabVisible) {
-            playNotificationSound({ subtle: true });
+            if (!isSilent) playNotificationSound({ subtle: true });
           } else {
-            playNotificationSound({ subtle: false });
+            if (!isSilent) playNotificationSound({ subtle: false });
 
             const conv = $conversations.find((c) => c.conversation?.custom_id === payload.conversation_id);
             const senderName = conv?.other_user?.display_name || conv?.other_user?.username || 'Tin nhắn mới';
@@ -81,7 +86,7 @@
 
             if (isTabVisible && !isViewingThisChat) {
               addToast({
-                title: 'Tin nhắn cá nhân',
+                title: isSilent ? '🔕 Tin nhắn im lặng' : 'Tin nhắn cá nhân',
                 senderName,
                 senderAvatar,
                 content: payload.content || (payload.type === 'image' ? '[Hình ảnh]' : '[Tệp tin]'),
@@ -89,7 +94,7 @@
               });
             }
 
-            if (!isTabVisible) {
+            if (!isTabVisible && !isSilent) {
               startFlashingTitle(senderName, payload.content);
               showDesktopNotification({
                 title: `💬 ${senderName}`,
@@ -119,10 +124,11 @@
         appendGroupMessage(payload);
 
         if (!isFromMe) {
+          const isSilent = payload.is_silent;
           if (isViewingThisGroup && isTabVisible) {
-            playNotificationSound({ subtle: true });
+            if (!isSilent) playNotificationSound({ subtle: true });
           } else {
-            playNotificationSound({ subtle: false });
+            if (!isSilent) playNotificationSound({ subtle: false });
 
             const targetGroup = $userGroups.find((g) => g.id === payload.group_id);
             const groupName = targetGroup?.name || 'Nhóm';
@@ -131,7 +137,7 @@
 
             if (isTabVisible && !isViewingThisGroup) {
               addToast({
-                title: groupName,
+                title: isSilent ? `🔕 ${groupName} (Im lặng)` : groupName,
                 senderName: payload.sender_name || 'Thành viên',
                 senderAvatar: payload.sender_avatar || groupAvatar,
                 content: payload.content || (payload.type === 'image' ? '[Hình ảnh]' : '[Tệp tin]'),
@@ -139,7 +145,7 @@
               });
             }
 
-            if (!isTabVisible) {
+            if (!isTabVisible && !isSilent) {
               startFlashingTitle(senderTitle, payload.content);
               showDesktopNotification({
                 title: `👥 ${groupName}`,
@@ -160,6 +166,37 @@
         appendGroupMessage(payload.message);
         break;
 
+      case 'chat:pin_updated':
+        if (payload?.message_id) {
+          updatePinnedLocally(payload.message_id, payload.is_pinned);
+        }
+        break;
+
+      case 'chat:thread_updated':
+      case 'group:thread_updated':
+        if (payload?.root_id) {
+          updateThreadCountLocally(payload.root_id, payload.thread_count);
+        }
+        break;
+
+      case 'reminder:alert':
+        playNotificationSound({ subtle: false });
+        addToast({
+          title: '⏰ Nhắc việc từ tin nhắn',
+          senderName: 'Lịch nhắc việc',
+          content: payload.snippet,
+          conversationId: payload.conversation_id,
+          groupId: payload.group_id
+        });
+        break;
+
+      case 'chat:error':
+        addToast({
+          title: 'Thông báo',
+          senderName: 'Hệ thống',
+          content: payload.message || 'Lỗi gửi tin'
+        });
+        break;
 
       case 'chat:reaction_updated':
         if (payload?.message_id) {

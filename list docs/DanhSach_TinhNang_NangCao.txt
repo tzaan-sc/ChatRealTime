@@ -20,17 +20,17 @@
 
 2. NHẮN TIN NÂNG CAO & SOẠN THẢO (ADVANCED MESSAGING)
 --------------------------------------------------------------------------------
-- [ ] Lên lịch hẹn giờ gửi tin nhắn (Scheduled Messages)
-- [ ] Gửi tin nhắn im lặng (Silent Messages - không gây chuông/rung phía người nhận)
-- [ ] Ghim nhiều tin nhắn cùng lúc trong cuộc trò chuyện (Multi-Pinned Messages)
-- [ ] Luồng thảo luận theo từng tin nhắn (Message Threads / In-Thread Replies)
+- [x] Lên lịch hẹn giờ gửi tin nhắn (Scheduled Messages)
+- [x] Gửi tin nhắn im lặng (Silent Messages - không gây chuông/rung phía người nhận)
+- [x] Ghim nhiều tin nhắn cùng lúc trong cuộc trò chuyện (Multi-Pinned Messages)
+- [x] Luồng thảo luận theo từng tin nhắn (Message Threads / In-Thread Replies)
 - [x] Đánh dấu tin nhắn là chưa đọc (Mark as Unread)
-- [ ] Tự động đồng bộ tin nhắn nháp giữa các thiết bị (Draft Message Sync)
-- [ ] Định dạng văn bản phong phú (Markdown: Đậm, Nghiêng, Gạch chân, Khung Code, Ẩn Spoiler)
-- [ ] Chuyển tiếp tin nhắn thông minh (Forward kèm hoặc bỏ tên người gửi gốc)
-- [ ] Hộp thư lưu trữ cá nhân (Saved Messages / Cloud Notebook)
-- [ ] Hẹn giờ nhắc việc từ tin nhắn (Set Reminder on Message)
-- [ ] Giới hạn tốc độ gửi tin trong phòng chat (Slow Mode chống spam)
+- [x] Tự động đồng bộ tin nhắn nháp giữa các thiết bị (Draft Message Sync)
+- [x] Định dạng văn bản phong phú (Markdown: Đậm, Nghiêng, Gạch chân, Khung Code, Ẩn Spoiler)
+- [x] Chuyển tiếp tin nhắn thông minh (Forward kèm hoặc bỏ tên người gửi gốc)
+- [x] Hộp thư lưu trữ cá nhân (Saved Messages / Cloud Notebook)
+- [x] Hẹn giờ nhắc việc từ tin nhắn (Set Reminder on Message)
+- [x] Giới hạn tốc độ gửi tin trong phòng chat (Slow Mode chống spam)
 
 3. NHÓM, KÊNH & CỘNG ĐỒNG (SPACES, CHANNELS & GROUPS)
 --------------------------------------------------------------------------------

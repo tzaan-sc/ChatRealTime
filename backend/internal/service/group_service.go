@@ -107,12 +107,13 @@ func (s *GroupService) GetGroupDetails(ctx context.Context, groupID, userID stri
 	}
 
 	res := &models.GroupDetailResponse{
-		ID:        group.ID.Hex(),
-		Name:      group.Name,
-		Avatar:    group.Avatar,
-		CreatorID: group.CreatorID.Hex(),
-		Members:   memberInfos,
-		CreatedAt: group.CreatedAt,
+		ID:              group.ID.Hex(),
+		Name:            group.Name,
+		Avatar:          group.Avatar,
+		CreatorID:       group.CreatorID.Hex(),
+		Members:         memberInfos,
+		SlowModeSeconds: group.SlowModeSeconds,
+		CreatedAt:       group.CreatedAt,
 	}
 
 	return res, nil
@@ -177,3 +178,23 @@ func (s *GroupService) LeaveOrRemove(ctx context.Context, requesterID, groupID, 
 
 	return s.groupRepo.RemoveMember(ctx, groupOID, targetOID)
 }
+
+// UpdateSlowMode cập nhật chế độ chậm cho nhóm (chỉ Admin)
+func (s *GroupService) UpdateSlowMode(ctx context.Context, adminID, groupID string, seconds int) error {
+	adminOID, err := primitive.ObjectIDFromHex(adminID)
+	if err != nil {
+		return errors.New("admin_id không hợp lệ")
+	}
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return errors.New("group_id không hợp lệ")
+	}
+
+	isAdmin, err := s.groupRepo.IsAdmin(ctx, groupOID, adminOID)
+	if err != nil || !isAdmin {
+		return errors.New("chỉ Quản trị viên mới có quyền đổi chế độ chậm")
+	}
+
+	return s.groupRepo.UpdateSlowMode(ctx, groupOID, seconds)
+}
+

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -30,9 +31,12 @@ func main() {
 	msgRepo := repository.NewMessageRepository(database.MongoDB)
 	convRepo := repository.NewConversationRepository(database.MongoDB)
 	groupRepo := repository.NewGroupRepository(database.MongoDB)
+	scheduledRepo := repository.NewScheduledRepository(database.MongoDB)
+	reminderRepo := repository.NewReminderRepository(database.MongoDB)
+	draftRepo := repository.NewDraftRepository(database.MongoDB)
 
 	// 4. Khởi tạo WebSocket Hub và chạy ngầm
-	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo, groupRepo, userRepo)
+	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo, groupRepo, userRepo, draftRepo)
 	go hub.Run()
 
 	// 5. Khởi tạo Services
@@ -40,9 +44,13 @@ func main() {
 	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
 	groupService := service.NewGroupService(groupRepo, userRepo)
 
+	// Khởi tạo Background Scheduler Service (quét tin hẹn giờ & nhắc việc)
+	schedulerService := service.NewSchedulerService(database.RedisClient, msgRepo, convRepo, scheduledRepo, reminderRepo)
+	schedulerService.Start(context.Background())
+
 	// 6. Khởi tạo Handlers
 	authHandler := handlers.NewAuthHandler(authService)
-	chatHandler := handlers.NewChatHandler(chatService)
+	chatHandler := handlers.NewChatHandler(chatService, msgRepo, scheduledRepo, reminderRepo, draftRepo, userRepo)
 	groupHandler := handlers.NewGroupHandler(groupService, msgRepo)
 	wsHandler := handlers.NewWSHandler(hub)
 	uploadHandler := handlers.NewUploadHandler()
@@ -83,6 +91,19 @@ func main() {
 			chat.POST("/messages/:conversation_id/read", chatHandler.MarkAsRead)
 			chat.POST("/messages/:conversation_id/unread", chatHandler.MarkAsUnread)
 			chat.GET("/users", chatHandler.GetUsers)
+
+			// Advanced Messaging Routes
+			chat.GET("/pinned/:target_id", chatHandler.GetPinnedMessages)
+			chat.GET("/messages/:id/thread", chatHandler.GetThreadMessages)
+			chat.POST("/scheduled", chatHandler.CreateScheduledMessage)
+			chat.GET("/scheduled", chatHandler.GetScheduledMessages)
+			chat.DELETE("/scheduled/:id", chatHandler.CancelScheduledMessage)
+			chat.POST("/reminders", chatHandler.CreateReminder)
+			chat.GET("/reminders", chatHandler.GetReminders)
+			chat.DELETE("/reminders/:id", chatHandler.DismissReminder)
+			chat.GET("/drafts", chatHandler.GetDrafts)
+			chat.POST("/drafts", chatHandler.SaveDraft)
+			chat.DELETE("/drafts/:target_id", chatHandler.DeleteDraft)
 		}
 
 		// Group Routes (Cần xác thực Token)
@@ -94,6 +115,7 @@ func main() {
 			groups.POST("/:id/members", groupHandler.AddMembers)
 			groups.DELETE("/:id/members/:userId", groupHandler.RemoveMember)
 			groups.GET("/:id/messages", groupHandler.GetGroupMessages)
+			groups.PATCH("/:id/slowmode", groupHandler.UpdateSlowMode)
 		}
 	}
 

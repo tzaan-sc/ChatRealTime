@@ -1,5 +1,15 @@
 <script>
-  import { activeConversation, activeGroup, currentMessages, onlineUsers, typingUsers, conversations } from '../stores/chat';
+  import {
+    activeConversation,
+    activeGroup,
+    currentMessages,
+    onlineUsers,
+    typingUsers,
+    conversations,
+    pinnedMessages,
+    drafts,
+    saveDraftLocallyAndRemote
+  } from '../stores/chat';
   import { currentUser } from '../stores/auth';
   import { wsService } from '../services/websocket';
   import { afterUpdate, onMount, onDestroy } from 'svelte';
@@ -18,11 +28,25 @@
     Smile,
     Users,
     Phone,
-    Video
+    Video,
+    Pin,
+    MessageSquare,
+    Share2,
+    Clock,
+    Bell,
+    BellOff,
+    Bookmark
   } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
   import GroupMembersModal from './GroupMembersModal.svelte';
+  import MarkdownToolbar from './MarkdownToolbar.svelte';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
+  import PinnedMessagesBar from './PinnedMessagesBar.svelte';
+  import ThreadDrawer from './ThreadDrawer.svelte';
+  import ForwardModal from './ForwardModal.svelte';
+  import ScheduleModal from './ScheduleModal.svelte';
+  import ReminderModal from './ReminderModal.svelte';
   import { startCall } from '../stores/call';
 
   const QUICK_EMOJIS = ['❤️', '😂', '👍', '😢', '🔥', '🚀'];
@@ -32,6 +56,7 @@
   let typingTimeout;
   let isTyping = false;
   let fileInput;
+  let textareaEl;
 
   // Trạng thái Upload & Lightbox
   let isUploading = false;
@@ -50,6 +75,18 @@
   let replyingTo = null; // { message_id, sender_name, content }
   let editingMessage = null; // message object
 
+  // Trạng thái Tính Năng Nâng Cao
+  let isSilentSend = false;
+  let showScheduleModal = false;
+  let showForwardModal = false;
+  let messageToForward = null;
+  let showReminderModal = false;
+  let messageForReminder = null;
+  let activeThreadRoot = null;
+  let draftDebounceTimer = null;
+  let slowModeRemaining = 0;
+  let slowModeTimer = null;
+
   // Trạng thái Modal Thành viên nhóm
   let showGroupMembersModal = false;
 
@@ -57,6 +94,43 @@
   $: partnerID = $activeConversation?.other_user?.id;
   $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
   $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
+
+  $: currentTargetId = isGroup
+    ? $activeGroup?.id
+    : $activeConversation?.conversation?.custom_id;
+
+  // Tự động khôi phục bản nháp khi chuyển phòng
+  let prevTargetId = null;
+  $: if (currentTargetId && currentTargetId !== prevTargetId) {
+    prevTargetId = currentTargetId;
+    inputContent = $drafts[currentTargetId] || '';
+  }
+
+  function onInputText() {
+    handleInput();
+    clearTimeout(draftDebounceTimer);
+    draftDebounceTimer = setTimeout(() => {
+      if (currentTargetId && !editingMessage) {
+        saveDraftLocallyAndRemote(currentTargetId, inputContent, isGroup ? 'group' : 'direct');
+      }
+    }, 800);
+  }
+
+  function startSlowModeCountdown(seconds) {
+    slowModeRemaining = seconds;
+    clearInterval(slowModeTimer);
+    slowModeTimer = setInterval(() => {
+      slowModeRemaining -= 1;
+      if (slowModeRemaining <= 0) {
+        clearInterval(slowModeTimer);
+      }
+    }, 1000);
+  }
+
+  onDestroy(() => {
+    clearInterval(slowModeTimer);
+    clearTimeout(draftDebounceTimer);
+  });
 
   // Bắt đầu cuộc gọi thoại hoặc video call
   function initiateCall(type) {
@@ -100,6 +174,11 @@
     if (!isGroup && (!$activeConversation || !partnerID)) return;
     if (isGroup && !$activeGroup) return;
 
+    if (slowModeRemaining > 0) {
+      alert(`Chế độ chậm đang bật. Vui lòng chờ ${slowModeRemaining} giây.`);
+      return;
+    }
+
     // Nếu đang trong chế độ chỉnh sửa tin nhắn
     if (editingMessage) {
       if (isGroup) {
@@ -133,7 +212,8 @@
       const payload = {
         group_id: $activeGroup.id,
         content: inputContent.trim(),
-        type: 'text'
+        type: 'text',
+        is_silent: isSilentSend
       };
 
       if (replyingTo) {
@@ -146,11 +226,19 @@
       }
 
       wsService.send('group:send', payload);
+
+      if ($activeGroup?.slow_mode_seconds > 0) {
+        const isAdmin = $activeGroup?.admin_ids?.includes($currentUser?.id) || $activeGroup?.creator_id === $currentUser?.id;
+        if (!isAdmin) {
+          startSlowModeCountdown($activeGroup.slow_mode_seconds);
+        }
+      }
     } else {
       const payload = {
         receiver_id: partnerID,
         content: inputContent.trim(),
-        type: 'text'
+        type: 'text',
+        is_silent: isSilentSend
       };
 
       if (replyingTo) {
@@ -163,6 +251,11 @@
       }
 
       wsService.send('chat:send', payload);
+    }
+
+    // Dọn dẹp nháp khi gửi thành công
+    if (currentTargetId) {
+      saveDraftLocallyAndRemote(currentTargetId, '', isGroup ? 'group' : 'direct');
     }
 
     inputContent = '';
@@ -401,6 +494,77 @@
     }
   }
 
+  // Chức năng Ghim / Gỡ ghim tin nhắn
+  function togglePin(msg) {
+    const isPinned = !msg.is_pinned;
+    if (isGroup) {
+      wsService.send('chat:pin', {
+        message_id: msg.id,
+        is_pinned: isPinned,
+        group_id: $activeGroup.id
+      });
+    } else {
+      wsService.send('chat:pin', {
+        message_id: msg.id,
+        is_pinned: isPinned,
+        conversation_id: $activeConversation.conversation.custom_id,
+        receiver_id: partnerID
+      });
+    }
+  }
+
+  function unpinMessage(msgId) {
+    if (isGroup) {
+      wsService.send('chat:pin', {
+        message_id: msgId,
+        is_pinned: false,
+        group_id: $activeGroup.id
+      });
+    } else {
+      wsService.send('chat:pin', {
+        message_id: msgId,
+        is_pinned: false,
+        conversation_id: $activeConversation.conversation.custom_id,
+        receiver_id: partnerID
+      });
+    }
+  }
+
+  // Chức năng Chuyển tiếp (Forward)
+  function openForward(msg) {
+    messageToForward = msg;
+    showForwardModal = true;
+  }
+
+  // Chức năng Hẹn giờ nhắc việc (Reminder)
+  function openReminder(msg) {
+    messageForReminder = msg;
+    showReminderModal = true;
+  }
+
+  // Chức năng Luồng thảo luận (Thread)
+  function openThread(msg) {
+    activeThreadRoot = msg;
+  }
+
+  // Chức năng Lưu vào Tin nhắn đã lưu (Saved Messages / Cloud Notebook)
+  function saveToCloud(msg) {
+    wsService.send('chat:send', {
+      receiver_id: $currentUser.id,
+      content: msg.content,
+      type: msg.type || 'text',
+      file_name: msg.file_name,
+      file_size: msg.file_size,
+      forward_from: {
+        original_sender_id: msg.sender_id,
+        original_sender_name: msg.sender_name || 'Người gửi',
+        original_message_id: msg.id,
+        is_anonymous: false
+      }
+    });
+    alert('Đã lưu tin nhắn vào Tin nhắn đã lưu (Cloud)!');
+  }
+
   // Thả reaction
   function toggleReaction(msg, emoji) {
     if (!msg || !msg.id) return;
@@ -520,8 +684,9 @@
     </div>
   </div>
 {:else}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <main class="chat-area" on:paste={handlePaste}>
+  <div class="chat-viewport-wrapper">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <main class="chat-area" on:paste={handlePaste}>
     <!-- Header -->
     <div class="chat-header glass-card">
       {#if isGroup}
@@ -583,6 +748,13 @@
       {/if}
     </div>
 
+    <!-- Thanh Ghim Tin Nhắn Đa Tầng -->
+    <PinnedMessagesBar
+      pinnedMessages={$pinnedMessages}
+      onScrollTo={scrollToMessage}
+      onUnpin={unpinMessage}
+    />
+
     <!-- Messages Body -->
     <div class="messages-viewport" bind:this={messagesContainer}>
       {#each $currentMessages as msg (msg.id)}
@@ -612,6 +784,36 @@
                 <Reply size={15} />
               </button>
 
+              <!-- Nút Luồng thảo luận (Thread) -->
+              <button class="tool-btn" on:click={() => openThread(msg)} title="Mở luồng thảo luận">
+                <MessageSquare size={14} />
+              </button>
+
+              <!-- Nút Ghim tin nhắn -->
+              <button
+                class="tool-btn"
+                class:active-pin={msg.is_pinned}
+                on:click={() => togglePin(msg)}
+                title={msg.is_pinned ? 'Gỡ ghim tin nhắn' : 'Ghim tin nhắn'}
+              >
+                <Pin size={14} />
+              </button>
+
+              <!-- Nút Chuyển tiếp -->
+              <button class="tool-btn" on:click={() => openForward(msg)} title="Chuyển tiếp">
+                <Share2 size={14} />
+              </button>
+
+              <!-- Nút Hẹn giờ nhắc việc -->
+              <button class="tool-btn" on:click={() => openReminder(msg)} title="Hẹn giờ nhắc việc">
+                <Clock size={14} />
+              </button>
+
+              <!-- Nút Lưu vào Tin nhắn đã lưu (Cloud) -->
+              <button class="tool-btn" on:click={() => saveToCloud(msg)} title="Lưu vào Tin nhắn đã lưu (Cloud)">
+                <Bookmark size={14} />
+              </button>
+
               <!-- Nút Sửa & Thu hồi (Chỉ hiện với tin của mình) -->
               {#if isMe}
                 {#if msg.type === 'text'}
@@ -628,6 +830,21 @@
 
           <!-- Bong Bóng Tin Nhắn Chính -->
           <div class="bubble" class:bubble-me={isMe} class:bubble-other={!isMe}>
+            <!-- Huy hiệu ghim góc tin nhắn -->
+            {#if msg.is_pinned}
+              <span class="pin-badge" title="Tin nhắn đã ghim">📌</span>
+            {/if}
+
+            <!-- Nguồn chuyển tiếp tin nhắn -->
+            {#if msg.forward_from}
+              <div class="forward-header">
+                <Share2 size={12} class="forward-icon" />
+                <span>
+                  {msg.forward_from.is_anonymous ? 'Tin nhắn chuyển tiếp ẩn danh' : `Chuyển tiếp từ ${msg.forward_from.original_sender_name || 'người gửi'}`}
+                </span>
+              </div>
+            {/if}
+
             <!-- Tên & Avatar thành viên gửi trong nhóm chat -->
             {#if isGroup && !isMe}
               <div class="group-sender-header">
@@ -694,11 +911,14 @@
             {:else if msg.type === 'voice'}
               <AudioPlayer src={msg.content} />
             {:else}
-              <p class="text">{msg.content}</p>
+              <MarkdownRenderer content={msg.content} />
             {/if}
 
-            <!-- Thông Tin Phụ: Giờ, Đã sửa, Tích đọc -->
+            <!-- Thông Tin Phụ: Giờ, Đã sửa, Im lặng, Tích đọc -->
             <div class="msg-meta">
+              {#if msg.is_silent}
+                <BellOff size={12} class="silent-meta-icon" title="Tin nhắn gửi im lặng" />
+              {/if}
               {#if msg.is_edited && !msg.is_deleted}
                 <span class="edited-tag" title="Tin nhắn đã qua chỉnh sửa">(đã sửa)</span>
               {/if}
@@ -729,6 +949,15 @@
               </div>
             {/if}
           </div>
+
+          <!-- Nút xem luồng thảo luận nếu có phản hồi -->
+          {#if msg.thread_count > 0 && !msg.is_deleted}
+            <button class="thread-replies-pill" on:click={() => openThread(msg)}>
+              <MessageSquare size={13} />
+              <span>{msg.thread_count} câu trả lời trong luồng</span>
+              <span class="view-thread-hint">Xem luồng ➔</span>
+            </button>
+          {/if}
         </div>
       {/each}
 
@@ -760,6 +989,22 @@
         on:change={handleFileInputChange}
         style="display: none;"
       />
+
+      <!-- Thanh Định Dạng Markdown -->
+      <MarkdownToolbar
+        bind:textareaRef={textareaEl}
+        onContentChange={(val) => {
+          inputContent = val;
+          onInputText();
+        }}
+      />
+
+      <!-- Banner Chế độ chậm (Slow Mode) nếu đang cooldown -->
+      {#if slowModeRemaining > 0}
+        <div class="slowmode-banner">
+          <span>⏳ Chế độ chậm đang bật: Vui lòng chờ {slowModeRemaining}s trước khi gửi tiếp...</span>
+        </div>
+      {/if}
 
       <!-- Thanh Banner Xem Trước Khi Đang Trả Lời (Reply Bar) -->
       {#if replyingTo}
@@ -822,15 +1067,45 @@
             >
               <Paperclip size={19} />
             </button>
+
+            <!-- Nút Bật/Tắt Gửi Im Lặng -->
+            <button
+              class="action-icon-btn silent-toggle-btn"
+              class:active={isSilentSend}
+              on:click={() => (isSilentSend = !isSilentSend)}
+              title={isSilentSend ? 'Đang bật Gửi im lặng (Không chuông/rung)' : 'Gửi im lặng (Không gây chuông/rung phía người nhận)'}
+            >
+              {#if isSilentSend}
+                <BellOff size={18} class="silent-active-icon" />
+              {:else}
+                <Bell size={18} />
+              {/if}
+            </button>
+
+            <!-- Nút Lên Lịch Gửi Tin -->
+            <button
+              class="action-icon-btn"
+              on:click={() => {
+                if (!inputContent.trim()) {
+                  alert('Vui lòng nhập nội dung tin nhắn trước khi lên lịch gửi!');
+                  return;
+                }
+                showScheduleModal = true;
+              }}
+              title="Lên lịch hẹn giờ gửi tin"
+            >
+              <Clock size={18} />
+            </button>
           {/if}
 
           <textarea
             rows="1"
-            placeholder={editingMessage ? 'Sửa tin nhắn... (Enter để Lưu)' : 'Nhập tin nhắn... hoặc dán ảnh (Ctrl + V)'}
+            bind:this={textareaEl}
+            placeholder={editingMessage ? 'Sửa tin nhắn... (Enter để Lưu)' : (isSilentSend ? '🔕 Gửi im lặng... (Enter để gửi)' : 'Nhập tin nhắn... (Hỗ trợ Markdown) hoặc dán ảnh (Ctrl + V)')}
             bind:value={inputContent}
-            on:input={handleInput}
+            on:input={onInputText}
             on:keydown={handleKeyDown}
-            disabled={isUploading}
+            disabled={isUploading || slowModeRemaining > 0}
           ></textarea>
 
           {#if !editingMessage}
@@ -847,12 +1122,15 @@
           <button
             class="send-btn"
             class:edit-save-btn={!!editingMessage}
+            class:silent-send-btn={isSilentSend && !editingMessage}
             on:click={handleSend}
-            disabled={!inputContent.trim() || isUploading}
-            title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi'}
+            disabled={!inputContent.trim() || isUploading || slowModeRemaining > 0}
+            title={editingMessage ? 'Lưu chỉnh sửa' : (isSilentSend ? 'Gửi im lặng' : 'Gửi')}
           >
             {#if editingMessage}
               <Check size={18} />
+            {:else if isSilentSend}
+              <BellOff size={18} />
             {:else}
               <Send size={18} />
             {/if}
@@ -862,22 +1140,74 @@
     </div>
   </main>
 
-  <!-- Image Lightbox Modal Phóng To Toàn Màn Hình -->
-  {#if selectedImage}
-    <ImageModal
-      imageUrl={selectedImage.url}
-      fileName={selectedImage.name}
-      onClose={() => (selectedImage = null)}
+  <!-- Slide-over Drawer Luồng Thảo Luận -->
+  {#if activeThreadRoot}
+    <ThreadDrawer
+      rootMessage={activeThreadRoot}
+      conversationID={$activeConversation?.conversation?.custom_id || ''}
+      groupID={$activeGroup?.id || ''}
+      partnerID={partnerID || ''}
+      onClose={() => (activeThreadRoot = null)}
     />
   {/if}
+</div>
 
-  <!-- Modal Quản Lý Thành Viên Nhóm -->
-  {#if showGroupMembersModal && $activeGroup}
-    <GroupMembersModal
-      groupID={$activeGroup.id}
-      onClose={() => (showGroupMembersModal = false)}
-    />
-  {/if}
+<!-- Image Lightbox Modal Phóng To Toàn Màn Hình -->
+{#if selectedImage}
+  <ImageModal
+    imageUrl={selectedImage.url}
+    fileName={selectedImage.name}
+    onClose={() => (selectedImage = null)}
+  />
+{/if}
+
+<!-- Modal Quản Lý Thành Viên Nhóm -->
+{#if showGroupMembersModal && $activeGroup}
+  <GroupMembersModal
+    groupID={$activeGroup.id}
+    onClose={() => (showGroupMembersModal = false)}
+  />
+{/if}
+
+<!-- Modal Chuyển Tiếp Tin Nhắn -->
+{#if showForwardModal && messageToForward}
+  <ForwardModal
+    message={messageToForward}
+    onClose={() => {
+      showForwardModal = false;
+      messageToForward = null;
+    }}
+  />
+{/if}
+
+<!-- Modal Lên Lịch Gửi Tin -->
+{#if showScheduleModal}
+  <ScheduleModal
+    content={inputContent}
+    conversationID={$activeConversation?.conversation?.custom_id || ''}
+    groupID={$activeGroup?.id || ''}
+    receiverID={partnerID || ''}
+    isSilent={isSilentSend}
+    onClose={() => (showScheduleModal = false)}
+    onScheduled={() => {
+      inputContent = '';
+      if (currentTargetId) {
+        saveDraftLocallyAndRemote(currentTargetId, '', isGroup ? 'group' : 'direct');
+      }
+    }}
+  />
+{/if}
+
+<!-- Modal Hẹn Giờ Nhắc Việc -->
+{#if showReminderModal && messageForReminder}
+  <ReminderModal
+    message={messageForReminder}
+    onClose={() => {
+      showReminderModal = false;
+      messageForReminder = null;
+    }}
+  />
+{/if}
 {/if}
 
 <style>
@@ -1495,5 +1825,102 @@
   .send-rec-btn:hover {
     background: #059669;
     transform: scale(1.08);
+  }
+
+  /* Chat Viewport Layout with Drawer */
+  .chat-viewport-wrapper {
+    flex: 1;
+    height: 100vh;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Pin Styling */
+  .tool-btn.active-pin {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.2);
+  }
+  .pin-badge {
+    position: absolute;
+    top: -7px;
+    right: 8px;
+    font-size: 11px;
+    background: rgba(18, 22, 38, 0.95);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 10px;
+    padding: 1px 4px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    line-height: 1;
+  }
+
+  /* Forward Snippet */
+  .forward-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #38bdf8;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed rgba(56, 189, 248, 0.3);
+  }
+  :global(.forward-icon) {
+    color: #38bdf8;
+    flex-shrink: 0;
+  }
+
+  /* Thread Pill */
+  .thread-replies-pill {
+    margin-top: 8px;
+    background: rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(167, 139, 250, 0.35);
+    color: #c4b5fd;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .thread-replies-pill:hover {
+    background: rgba(167, 139, 250, 0.3);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  /* Slow Mode Banner */
+  .slowmode-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: var(--radius-md);
+    color: #fbbf24;
+    font-size: 12px;
+    font-weight: 500;
+    animation: fadeIn 0.2s ease;
+  }
+
+  /* Silent Messages Styling */
+  .silent-toggle-btn.active {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.2);
+  }
+  :global(.silent-active-icon) {
+    color: #f87171;
+  }
+  .silent-send-btn {
+    background: linear-gradient(135deg, #64748b, #475569) !important;
+  }
+  :global(.silent-meta-icon) {
+    color: var(--text-dim);
+    margin-right: 2px;
   }
 </style>

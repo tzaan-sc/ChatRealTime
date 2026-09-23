@@ -9,6 +9,8 @@ export const userGroups = writable([]);
 export const activeGroup = writable(null); // Group object
 export const currentMessages = writable([]);
 export const userDirectory = writable([]);
+export const pinnedMessages = writable([]);
+export const drafts = writable({}); // map target_id -> content string
 
 // Set các User ID đang online (Ví dụ: Set(['id1', 'id2']))
 export const onlineUsers = writable(new Set());
@@ -116,6 +118,7 @@ export async function selectConversation(convItem) {
   try {
     const res = await apiRequest(`/chat/messages/${convID}?limit=50`, 'GET', null, t);
     currentMessages.set(res.data || []);
+    loadPinnedMessages(convID, false);
     apiRequest(`/chat/messages/${convID}/read`, 'POST', null, t).catch(() => {});
   } catch (err) {
     console.error('Lỗi tải tin nhắn:', err);
@@ -132,6 +135,7 @@ export async function selectGroup(groupItem) {
   try {
     const res = await apiRequest(`/groups/${groupItem.id}/messages?limit=50`, 'GET', null, t);
     currentMessages.set(res.data || []);
+    loadPinnedMessages(groupItem.id, true);
   } catch (err) {
     console.error('Lỗi tải tin nhắn nhóm:', err);
   }
@@ -372,3 +376,135 @@ export function updateMessageEditedLocally(messageID, newContent) {
     })
   );
 }
+
+// Tải danh sách tin nhắn ghim
+export async function loadPinnedMessages(targetId, isGroup) {
+  const t = get(token);
+  if (!t || !targetId) return;
+  try {
+    const res = await apiRequest(`/chat/pinned/${targetId}?is_group=${isGroup}`, 'GET', null, t);
+    pinnedMessages.set(res.data || []);
+  } catch (e) {
+    console.error('Lỗi tải tin nhắn ghim:', e);
+  }
+}
+
+// Cập nhật trạng thái ghim tin nhắn cục bộ
+export function updatePinnedLocally(msgId, isPinned) {
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.id === msgId) {
+        return { ...m, is_pinned: isPinned };
+      }
+      return m;
+    })
+  );
+
+  pinnedMessages.update((list) => {
+    if (isPinned) {
+      const allMsgs = get(currentMessages);
+      const found = allMsgs.find((m) => m.id === msgId);
+      if (found && !list.some((p) => p.id === msgId)) {
+        return [found, ...list];
+      }
+      return list;
+    } else {
+      return list.filter((p) => p.id !== msgId);
+    }
+  });
+}
+
+// Cập nhật số lượng phản hồi luồng thảo luận
+export function updateThreadCountLocally(rootId, newCount) {
+  currentMessages.update((msgs) =>
+    msgs.map((m) => {
+      if (m.id === rootId) {
+        return { ...m, thread_count: newCount };
+      }
+      return m;
+    })
+  );
+}
+
+// Tải các bản nháp từ server
+export async function loadDrafts() {
+  const t = get(token);
+  if (!t) return;
+  try {
+    const res = await apiRequest('/chat/drafts', 'GET', null, t);
+    const map = {};
+    for (const d of res.data || []) {
+      if (d.content && d.content.trim()) {
+        map[d.target_id] = d.content;
+      }
+    }
+    drafts.set(map);
+  } catch (e) {
+    console.error('Lỗi tải tin nháp:', e);
+  }
+}
+
+// Lưu tin nhắn nháp (cục bộ + server)
+export function saveDraftLocallyAndRemote(targetId, content, targetType) {
+  if (!targetId) return;
+  const t = get(token);
+
+  drafts.update((d) => {
+    const next = { ...d };
+    if (content && content.trim()) {
+      next[targetId] = content;
+    } else {
+      delete next[targetId];
+    }
+    return next;
+  });
+
+  // Gửi WebSocket đồng bộ đa thiết bị
+  wsService.send('draft:sync', {
+    target_id: targetId,
+    target_type: targetType,
+    content: content || ''
+  });
+
+  if (t) {
+    if (content && content.trim()) {
+      apiRequest('/chat/drafts', 'POST', { target_id: targetId, target_type: targetType, content }, t).catch(() => {});
+    } else {
+      apiRequest(`/chat/drafts/${targetId}`, 'DELETE', null, t).catch(() => {});
+    }
+  }
+}
+
+// Mở Hộp thư lưu trữ cá nhân (Saved Messages / Cloud Notebook)
+export async function openSavedMessages() {
+  const me = get(currentUser);
+  if (!me) return;
+
+  activeGroup.set(null);
+  const savedConv = {
+    conversation: {
+      custom_id: `saved_${me.id}`,
+      members: [me.id],
+      last_message: 'Hộp thư lưu trữ cá nhân'
+    },
+    other_user: {
+      id: me.id,
+      username: me.username,
+      display_name: 'Tin nhắn đã lưu (Cloud Notebook)',
+      avatar_url: me.avatar_url || ''
+    },
+    is_saved: true,
+    unread_count: 0
+  };
+
+  activeConversation.set(savedConv);
+  const t = get(token);
+  try {
+    const res = await apiRequest(`/chat/messages/saved_${me.id}?limit=50`, 'GET', null, t);
+    currentMessages.set(res.data || []);
+    loadPinnedMessages(`saved_${me.id}`, false);
+  } catch (err) {
+    console.error('Lỗi tải Saved Messages:', err);
+  }
+}
+

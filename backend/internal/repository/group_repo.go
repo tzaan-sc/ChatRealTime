@@ -99,3 +99,16 @@ func (r *GroupRepository) IsAdmin(ctx context.Context, groupID primitive.ObjectI
 	})
 	return count > 0, err
 }
+
+// UpdateSlowMode cập nhật thời gian giới hạn gửi tin trong nhóm
+func (r *GroupRepository) UpdateSlowMode(ctx context.Context, groupID primitive.ObjectID, slowModeSeconds int) error {
+	update := bson.M{
+		"$set": bson.M{
+			"slow_mode_seconds": slowModeSeconds,
+			"updated_at":        time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+

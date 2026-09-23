@@ -132,3 +132,28 @@ func (h *GroupHandler) GetGroupMessages(c *gin.Context) {
 		"data": messages,
 	})
 }
+
+// UpdateSlowMode API cập nhật thời gian chế độ chậm (Slow Mode)
+func (h *GroupHandler) UpdateSlowMode(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req struct {
+		Seconds int `json:"seconds"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ"})
+		return
+	}
+
+	if err := h.groupService.UpdateSlowMode(c.Request.Context(), currentUserID, groupID, req.Seconds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Đã cập nhật chế độ chậm thành công",
+		"seconds": req.Seconds,
+	})
+}
+

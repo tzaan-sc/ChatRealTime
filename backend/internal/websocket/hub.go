@@ -26,9 +26,10 @@ type Hub struct {
 	convRepo    *repository.ConversationRepository
 	groupRepo   *repository.GroupRepository
 	userRepo    *repository.UserRepository
+	draftRepo   *repository.DraftRepository
 }
 
-func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, convRepo *repository.ConversationRepository, groupRepo *repository.GroupRepository, userRepo *repository.UserRepository) *Hub {
+func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, convRepo *repository.ConversationRepository, groupRepo *repository.GroupRepository, userRepo *repository.UserRepository, draftRepo *repository.DraftRepository) *Hub {
 	return &Hub{
 		clients:     make(map[string]*Client),
 		register:    make(chan *Client),
@@ -38,6 +39,7 @@ func NewHub(redisClient *redis.Client, msgRepo *repository.MessageRepository, co
 		convRepo:    convRepo,
 		groupRepo:   groupRepo,
 		userRepo:    userRepo,
+		draftRepo:   draftRepo,
 	}
 }
 
@@ -256,6 +258,12 @@ func (h *Hub) HandleClientEvent(client *Client, event models.WSEvent) {
 	case "chat:unread":
 		h.handleMarkAsUnread(client, event.Payload)
 
+	case "chat:pin":
+		h.handlePinMessage(client, event.Payload)
+
+	case "draft:sync":
+		h.handleDraftSync(client, event.Payload)
+
 	case "call:request", "call:accept", "call:reject", "call:offer", "call:answer", "call:ice_candidate", "call:hangup":
 		h.handleCallSignaling(client, event.Event, event.Payload)
 
@@ -290,7 +298,13 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 	}
 
 	ctx := context.Background()
-	convID := GetConversationID(client.UserID, req.ReceiverID)
+	var convID string
+	isSelfSaved := (req.ReceiverID == client.UserID)
+	if isSelfSaved {
+		convID = fmt.Sprintf("saved_%s", client.UserID)
+	} else {
+		convID = GetConversationID(client.UserID, req.ReceiverID)
+	}
 
 	// 1. Lưu tin nhắn vào MongoDB
 	newMsg := &models.Message{
@@ -302,14 +316,43 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 		FileName:       req.FileName,
 		FileSize:       req.FileSize,
 		ReplyTo:        req.ReplyTo,
-		IsRead:         false,
+		IsSilent:       req.IsSilent,
+		ThreadRootID:   req.ThreadRootID,
+		ForwardFrom:    req.ForwardFrom,
+		IsRead:         isSelfSaved,
 		CreatedAt:      time.Now(),
 	}
-
 
 	if err := h.msgRepo.Create(ctx, newMsg); err != nil {
 		log.Printf("Lỗi lưu tin nhắn vào MongoDB: %v", err)
 		return
+	}
+
+	// Xóa bản nháp nếu có
+	if h.draftRepo != nil {
+		_ = h.draftRepo.Delete(ctx, client.UserID, convID)
+	}
+
+	// Nếu là tin nhắn phản hồi trong luồng (Thread Reply), cập nhật thread count của tin nhắn gốc
+	if req.ThreadRootID != "" {
+		if rootOID, err := primitive.ObjectIDFromHex(req.ThreadRootID); err == nil {
+			_ = h.msgRepo.IncrementThreadCount(ctx, rootOID)
+			if rootMsg, err := h.msgRepo.GetByID(ctx, rootOID); err == nil && rootMsg != nil {
+				threadUpEvent := models.WSEvent{
+					Event: "chat:thread_updated",
+					Payload: map[string]interface{}{
+						"root_id":         req.ThreadRootID,
+						"thread_count":    rootMsg.ThreadCount + 1,
+						"conversation_id": convID,
+					},
+				}
+				bytes, _ := json.Marshal(threadUpEvent)
+				if !isSelfSaved {
+					h.redisClient.Publish(ctx, fmt.Sprintf("user:chat:%s", req.ReceiverID), string(bytes))
+				}
+				client.Send <- bytes
+			}
+		}
 	}
 
 	// 2. Cập nhật hội thoại
@@ -329,15 +372,16 @@ func (h *Hub) handleSendMessage(client *Client, rawPayload interface{}) {
 	}
 	_ = h.convRepo.UpdateLastMessage(ctx, convID, lastSnippet, client.UserID)
 
-
-	// 3. Đóng gói Event bắn qua Redis Pub/Sub cho người nhận
+	// 3. Đóng gói Event bắn qua Redis Pub/Sub cho người nhận (nếu không phải tự gửi cho mình)
 	eventReceive := models.WSEvent{
 		Event:   "chat:receive",
 		Payload: newMsg,
 	}
 	eventReceiveBytes, _ := json.Marshal(eventReceive)
-	receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
-	h.redisClient.Publish(ctx, receiverChannel, string(eventReceiveBytes))
+	if !isSelfSaved {
+		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
+		h.redisClient.Publish(ctx, receiverChannel, string(eventReceiveBytes))
+	}
 
 	// 4. Trả gói tin ACK về cho người gửi
 	eventACK := models.WSEvent{
@@ -624,6 +668,30 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 			log.Printf("User %s không thuộc nhóm %s", client.UserID, req.GroupID)
 			return
 		}
+
+		// Kiểm tra Chế độ chậm (Slow Mode)
+		group, err := h.groupRepo.GetByID(ctx, groupOID)
+		if err == nil && group != nil && group.SlowModeSeconds > 0 {
+			isAdmin, _ := h.groupRepo.IsAdmin(ctx, groupOID, userOID)
+			if !isAdmin && group.CreatorID != userOID {
+				slowKey := fmt.Sprintf("slowmode:%s:%s", req.GroupID, client.UserID)
+				ttl, _ := h.redisClient.TTL(ctx, slowKey).Result()
+				if ttl > 0 {
+					errEvent := models.WSEvent{
+						Event: "chat:error",
+						Payload: map[string]interface{}{
+							"type":             "slow_mode",
+							"message":          fmt.Sprintf("Chế độ chậm đang bật. Vui lòng chờ %d giây trước khi gửi tiếp.", int(ttl.Seconds())),
+							"cooldown_seconds": int(ttl.Seconds()),
+						},
+					}
+					errBytes, _ := json.Marshal(errEvent)
+					client.Send <- errBytes
+					return
+				}
+				h.redisClient.Set(ctx, slowKey, "1", time.Duration(group.SlowModeSeconds)*time.Second)
+			}
+		}
 	}
 
 	// Lấy profile người gửi
@@ -654,6 +722,9 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 		FileName:     req.FileName,
 		FileSize:     req.FileSize,
 		ReplyTo:      req.ReplyTo,
+		IsSilent:     req.IsSilent,
+		ThreadRootID: req.ThreadRootID,
+		ForwardFrom:  req.ForwardFrom,
 		IsRead:       true,
 		CreatedAt:    time.Now(),
 	}
@@ -661,6 +732,31 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 	if err := h.msgRepo.Create(ctx, newMsg); err != nil {
 		log.Printf("Lỗi lưu tin nhắn nhóm vào MongoDB: %v", err)
 		return
+	}
+
+	// Xóa bản nháp nhóm nếu có
+	if h.draftRepo != nil {
+		_ = h.draftRepo.Delete(ctx, client.UserID, req.GroupID)
+	}
+
+	// Cập nhật thread count nếu là phản hồi trong luồng
+	if req.ThreadRootID != "" {
+		if rootOID, err := primitive.ObjectIDFromHex(req.ThreadRootID); err == nil {
+			_ = h.msgRepo.IncrementThreadCount(ctx, rootOID)
+			if rootMsg, err := h.msgRepo.GetByID(ctx, rootOID); err == nil && rootMsg != nil {
+				threadUpEvent := models.WSEvent{
+					Event: "group:thread_updated",
+					Payload: map[string]interface{}{
+						"root_id":      req.ThreadRootID,
+						"thread_count": rootMsg.ThreadCount + 1,
+						"group_id":     req.GroupID,
+					},
+				}
+				bytes, _ := json.Marshal(threadUpEvent)
+				groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+				h.redisClient.Publish(ctx, groupChannel, string(bytes))
+			}
+		}
 	}
 
 	// Broadcast tin nhắn vào Redis channel của nhóm
@@ -733,6 +829,79 @@ func (h *Hub) handleCallSignaling(client *Client, eventType string, rawPayload i
 	receiverChannel := fmt.Sprintf("user:chat:%s", receiverID)
 	h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
 }
+
+// handlePinMessage xử lý ghim hoặc gỡ ghim tin nhắn
+func (h *Hub) handlePinMessage(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req struct {
+		MessageID      string `json:"message_id"`
+		IsPinned       bool   `json:"is_pinned"`
+		ConversationID string `json:"conversation_id"`
+		GroupID        string `json:"group_id"`
+		ReceiverID     string `json:"receiver_id"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+	msgOID, err := primitive.ObjectIDFromHex(req.MessageID)
+	if err != nil {
+		return
+	}
+
+	ctx := context.Background()
+	if req.IsPinned {
+		_ = h.msgRepo.PinMessage(ctx, msgOID, client.UserID)
+	} else {
+		_ = h.msgRepo.UnpinMessage(ctx, msgOID)
+	}
+
+	outEvent := models.WSEvent{
+		Event: "chat:pin_updated",
+		Payload: map[string]interface{}{
+			"message_id":      req.MessageID,
+			"is_pinned":       req.IsPinned,
+			"conversation_id": req.ConversationID,
+			"group_id":        req.GroupID,
+			"pinned_by":       client.UserID,
+		},
+	}
+	outBytes, _ := json.Marshal(outEvent)
+
+	if req.GroupID != "" {
+		groupChannel := fmt.Sprintf("group:chat:%s", req.GroupID)
+		h.redisClient.Publish(ctx, groupChannel, string(outBytes))
+	} else if req.ReceiverID != "" {
+		receiverChannel := fmt.Sprintf("user:chat:%s", req.ReceiverID)
+		h.redisClient.Publish(ctx, receiverChannel, string(outBytes))
+	}
+
+	client.Send <- outBytes
+}
+
+// handleDraftSync xử lý đồng bộ tin nhắn nháp đa thiết bị
+func (h *Hub) handleDraftSync(client *Client, rawPayload interface{}) {
+	payloadBytes, err := json.Marshal(rawPayload)
+	if err != nil {
+		return
+	}
+	var req struct {
+		TargetID   string `json:"target_id"`
+		TargetType string `json:"target_type"`
+		Content    string `json:"content"`
+	}
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
+		return
+	}
+
+	if h.draftRepo != nil {
+		ctx := context.Background()
+		_ = h.draftRepo.Upsert(ctx, client.UserID, req.TargetID, req.TargetType, req.Content)
+	}
+}
+
 
 
 

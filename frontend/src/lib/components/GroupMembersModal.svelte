@@ -84,7 +84,18 @@
       await fetchGroupDetails();
       await loadUserGroups();
     } catch (err) {
-      alert('Lỗi xóa thành viên: ' + err.message);
+      alert('Lỗi thao tác: ' + err.message);
+    }
+  }
+
+  async function handleUpdateSlowMode(seconds) {
+    try {
+      await apiRequest(`/groups/${groupID}/slowmode`, 'PATCH', { seconds }, $token);
+      groupDetails.slow_mode_seconds = seconds;
+      activeGroup.update((g) => (g ? { ...g, slow_mode_seconds: seconds } : g));
+      loadUserGroups();
+    } catch (e) {
+      alert('Không thể cập nhật chế độ chậm: ' + e.message);
     }
   }
 
@@ -173,6 +184,26 @@
               {isAddingMembers ? 'Đang thêm...' : 'Xác nhận thêm'}
             </button>
           {/if}
+        </div>
+      {/if}
+
+      <!-- Slow Mode Setting for Admins -->
+      {#if amIAdmin}
+        <div class="slowmode-setting-box">
+          <div class="slowmode-setting-header">
+            <span>⏱️ Chế độ chậm (Slow Mode chống spam):</span>
+          </div>
+          <div class="slowmode-btn-group">
+            {#each [0, 5, 10, 30, 60, 120] as sec}
+              <button
+                class="sm-btn"
+                class:active={(groupDetails?.slow_mode_seconds || 0) === sec}
+                on:click={() => handleUpdateSlowMode(sec)}
+              >
+                {sec === 0 ? 'Tắt' : `${sec}s`}
+              </button>
+            {/each}
+          </div>
         </div>
       {/if}
 
@@ -494,6 +525,43 @@
   }
   .leave-btn:hover {
     background: rgba(239, 68, 68, 0.3);
+  }
+
+  .slowmode-setting-box {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+  }
+  .slowmode-setting-header {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+  .slowmode-btn-group {
+    display: flex;
+    gap: 6px;
+  }
+  .sm-btn {
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    border-radius: 6px;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .sm-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .sm-btn.active {
+    background: #6366f1;
+    color: #fff;
+    border-color: #818cf8;
+    font-weight: 600;
   }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
