@@ -2,6 +2,7 @@
   import {
     activeConversation,
     activeGroup,
+    activeChannel,
     currentMessages,
     onlineUsers,
     typingUsers,
@@ -35,11 +36,14 @@
     Clock,
     Bell,
     BellOff,
-    Bookmark
+    Bookmark,
+    Hash,
+    Megaphone
   } from 'lucide-svelte';
   import ImageModal from './ImageModal.svelte';
   import AudioPlayer from './AudioPlayer.svelte';
   import GroupMembersModal from './GroupMembersModal.svelte';
+  import ChannelSidebar from './ChannelSidebar.svelte';
   import MarkdownToolbar from './MarkdownToolbar.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import PinnedMessagesBar from './PinnedMessagesBar.svelte';
@@ -95,8 +99,15 @@
   $: isPartnerOnline = partnerID ? $onlineUsers.has(partnerID) : false;
   $: isPartnerTyping = partnerID ? $typingUsers.has(partnerID) : false;
 
+  $: amIAdmin =
+    $activeGroup?.creator_id === $currentUser?.id ||
+    $activeGroup?.members?.some((m) => m.id === $currentUser?.id && m.is_admin);
+
+  $: isAnnouncementChannel = isGroup && $activeChannel?.type === 'announcement';
+  $: canSendInCurrentChannel = !isAnnouncementChannel || amIAdmin;
+
   $: currentTargetId = isGroup
-    ? $activeGroup?.id
+    ? ($activeChannel?.id ? ($activeGroup?.id + '_' + $activeChannel.id) : $activeGroup?.id)
     : $activeConversation?.conversation?.custom_id;
 
   // Tự động khôi phục bản nháp khi chuyển phòng
@@ -209,8 +220,13 @@
     }
 
     if (isGroup) {
+      if (!canSendInCurrentChannel) {
+        alert('Kênh thông báo chỉ dành cho quản trị viên đăng bài.');
+        return;
+      }
       const payload = {
         group_id: $activeGroup.id,
+        channel_id: $activeChannel?.id || undefined,
         content: inputContent.trim(),
         type: 'text',
         is_silent: isSilentSend
@@ -303,8 +319,13 @@
       const data = await res.json();
 
       if (isGroup) {
+        if (!canSendInCurrentChannel) {
+          alert('Kênh thông báo chỉ dành cho quản trị viên đăng bài.');
+          return;
+        }
         const payload = {
           group_id: $activeGroup.id,
+          channel_id: $activeChannel?.id || undefined,
           content: data.file_url,
           type: data.type,
           file_name: data.file_name,
@@ -685,6 +706,11 @@
   </div>
 {:else}
   <div class="chat-viewport-wrapper">
+    <!-- Channel Sidebar khi đang xem Nhóm chat/Không gian cộng đồng -->
+    {#if isGroup}
+      <ChannelSidebar onOpenMembersModal={() => (showGroupMembersModal = true)} />
+    {/if}
+
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <main class="chat-area" on:paste={handlePaste}>
     <!-- Header -->
@@ -692,16 +718,25 @@
       {#if isGroup}
         <div class="partner-info">
           <div class="avatar-wrap">
-            <img
-              src={$activeGroup.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${$activeGroup.id}`}
-              alt="avatar"
-              class="header-avatar"
-            />
+            <div class="chan-badge-icon" class:announcement={$activeChannel?.type === 'announcement'}>
+              {#if $activeChannel?.type === 'announcement'}
+                <Megaphone size={19} />
+              {:else}
+                <Hash size={19} />
+              {/if}
+            </div>
           </div>
           <div>
-            <h3>{$activeGroup.name}</h3>
+            <div class="chan-title-row">
+              <h3>{$activeChannel ? $activeChannel.name : $activeGroup.name}</h3>
+              {#if $activeChannel?.type === 'announcement'}
+                <span class="announcement-pill">📢 Kênh Thông Báo</span>
+              {/if}
+            </div>
             <span class="status-sub">
-              <span class="online-text">{$activeGroup.member_count || $activeGroup.members?.length || 0} thành viên</span>
+              <span class="chan-desc-text">
+                {$activeChannel?.description || `${$activeGroup.member_count || $activeGroup.members?.length || 0} thành viên`}
+              </span>
             </span>
           </div>
         </div>
@@ -991,13 +1026,15 @@
       />
 
       <!-- Thanh Định Dạng Markdown -->
-      <MarkdownToolbar
-        bind:textareaRef={textareaEl}
-        onContentChange={(val) => {
-          inputContent = val;
-          onInputText();
-        }}
-      />
+      {#if canSendInCurrentChannel}
+        <MarkdownToolbar
+          bind:textareaRef={textareaEl}
+          onContentChange={(val) => {
+            inputContent = val;
+            onInputText();
+          }}
+        />
+      {/if}
 
       <!-- Banner Chế độ chậm (Slow Mode) nếu đang cooldown -->
       {#if slowModeRemaining > 0}
@@ -1038,7 +1075,13 @@
         </div>
       {/if}
 
-      {#if isRecording}
+      {#if isGroup && !canSendInCurrentChannel}
+        <!-- Banner Kênh Thông Báo 1 Chiều Chỉ Đọc Cho Thành Viên -->
+        <div class="announcement-readonly-banner">
+          <Megaphone size={16} class="banner-meg-icon" />
+          <span>📢 Kênh thông báo: Chỉ Quản trị viên mới có thể gửi tin nhắn tại kênh này.</span>
+        </div>
+      {:else if isRecording}
         <!-- Thanh Ghi Âm Voice Note -->
         <div class="recording-bar">
           <div class="recording-status">
@@ -1186,6 +1229,7 @@
     content={inputContent}
     conversationID={$activeConversation?.conversation?.custom_id || ''}
     groupID={$activeGroup?.id || ''}
+    channelID={$activeChannel?.id || ''}
     receiverID={partnerID || ''}
     isSilent={isSilentSend}
     onClose={() => (showScheduleModal = false)}
@@ -1922,5 +1966,55 @@
   :global(.silent-meta-icon) {
     color: var(--text-dim);
     margin-right: 2px;
+  }
+
+  /* Channel Header & Announcement Badges */
+  .chan-badge-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chan-badge-icon.announcement {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+  }
+  .chan-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .announcement-pill {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .chan-desc-text {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .announcement-readonly-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-radius: var(--radius-lg);
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
   }
 </style>

@@ -32,6 +32,7 @@ type Message struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	ConversationID string             `bson:"conversation_id,omitempty" json:"conversation_id,omitempty"` // Dùng cho chat 1-1
 	GroupID        string             `bson:"group_id,omitempty" json:"group_id,omitempty"`               // Dùng cho chat nhóm
+	ChannelID      string             `bson:"channel_id,omitempty" json:"channel_id,omitempty"`           // Dùng cho chat trong kênh của nhóm
 	SenderID       string             `bson:"sender_id" json:"sender_id"`
 	SenderName     string             `bson:"sender_name,omitempty" json:"sender_name,omitempty"`
 	SenderAvatar   string             `bson:"sender_avatar,omitempty" json:"sender_avatar,omitempty"`
@@ -60,6 +61,7 @@ type Message struct {
 type SendMessageRequest struct {
 	ReceiverID   string          `json:"receiver_id,omitempty"`
 	GroupID      string          `json:"group_id,omitempty"`
+	ChannelID    string          `json:"channel_id,omitempty"`
 	Content      string          `json:"content" binding:"required"`
 	Type         string          `json:"type"` // "text", "image", "file", "voice"
 	FileName     string          `json:"file_name,omitempty"`

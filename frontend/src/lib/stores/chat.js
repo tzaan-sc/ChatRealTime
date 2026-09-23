@@ -7,6 +7,8 @@ export const conversations = writable([]);
 export const activeConversation = writable(null); // { conversation, other_user }
 export const userGroups = writable([]);
 export const activeGroup = writable(null); // Group object
+export const activeChannel = writable(null); // Kênh chat hiện tại trong nhóm { id, name, type, ... }
+export const channelUnreadCounts = writable({}); // map channel_id -> number
 export const currentMessages = writable([]);
 export const userDirectory = writable([]);
 export const pinnedMessages = writable([]);
@@ -94,6 +96,7 @@ export async function loadUserGroups() {
 // Chọn cuộc trò chuyện 1-1 và tải lịch sử
 export async function selectConversation(convItem) {
   activeGroup.set(null);
+  activeChannel.set(null);
   activeConversation.set(convItem);
   const t = get(token);
   const convID = convItem.conversation.custom_id;
@@ -125,20 +128,104 @@ export async function selectConversation(convItem) {
   }
 }
 
-// Chọn nhóm chat và tải lịch sử tin nhắn nhóm
+// Chọn nhóm chat và tải thông tin chi tiết cùng các kênh con
 export async function selectGroup(groupItem) {
   activeConversation.set(null);
-  activeGroup.set(groupItem);
   clearGroupUnread(groupItem.id);
 
   const t = get(token);
   try {
-    const res = await apiRequest(`/groups/${groupItem.id}/messages?limit=50`, 'GET', null, t);
-    currentMessages.set(res.data || []);
-    loadPinnedMessages(groupItem.id, true);
+    // 1. Tải chi tiết nhóm (bao gồm categories & channels)
+    const resDetails = await apiRequest(`/groups/${groupItem.id}`, 'GET', null, t);
+    const details = resDetails.data || groupItem;
+    activeGroup.set(details);
+
+    // 2. Nếu nhóm có kênh, chọn kênh văn bản đầu tiên hoặc kênh đầu tiên
+    if (details.channels && details.channels.length > 0) {
+      const defaultChan = details.channels.find(c => c.type === 'text') || details.channels[0];
+      await selectChannel(defaultChan);
+    } else {
+      activeChannel.set(null);
+      const res = await apiRequest(`/groups/${groupItem.id}/messages?limit=50`, 'GET', null, t);
+      currentMessages.set(res.data || []);
+      loadPinnedMessages(groupItem.id, true);
+    }
   } catch (err) {
-    console.error('Lỗi tải tin nhắn nhóm:', err);
+    console.error('Lỗi tải nhóm:', err);
+    activeGroup.set(groupItem);
   }
+}
+
+// Chọn kênh trong nhóm
+export async function selectChannel(channel) {
+  activeChannel.set(channel);
+  const grp = get(activeGroup);
+  if (!grp || !channel) return;
+
+  // Xóa unread cho kênh này
+  channelUnreadCounts.update(map => ({ ...map, [channel.id]: 0 }));
+
+  const t = get(token);
+  try {
+    const res = await apiRequest(`/groups/${grp.id}/messages?channel_id=${channel.id}&limit=50`, 'GET', null, t);
+    currentMessages.set(res.data || []);
+    loadPinnedMessages(grp.id, true);
+  } catch (err) {
+    console.error('Lỗi tải tin nhắn kênh:', err);
+  }
+}
+
+// Làm mới chi tiết nhóm đang active (danh mục, kênh)
+export async function refreshActiveGroup() {
+  const grp = get(activeGroup);
+  if (!grp) return;
+  const t = get(token);
+  try {
+    const res = await apiRequest(`/groups/${grp.id}`, 'GET', null, t);
+    if (res.data) {
+      activeGroup.set(res.data);
+      const currentChan = get(activeChannel);
+      if (currentChan && !res.data.channels?.some(c => c.id === currentChan.id)) {
+        if (res.data.channels && res.data.channels.length > 0) {
+          selectChannel(res.data.channels[0]);
+        } else {
+          activeChannel.set(null);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi refresh nhóm:', err);
+  }
+}
+
+// Tạo danh mục kênh mới
+export async function createCategory(groupId, name) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/categories`, 'POST', { name }, t);
+  await refreshActiveGroup();
+  return res.data;
+}
+
+// Xóa danh mục kênh
+export async function deleteCategory(groupId, catId) {
+  const t = get(token);
+  await apiRequest(`/groups/${groupId}/categories/${catId}`, 'DELETE', null, t);
+  await refreshActiveGroup();
+}
+
+// Tạo kênh mới
+export async function createChannel(groupId, payload) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/channels`, 'POST', payload, t);
+  await refreshActiveGroup();
+  return res.data;
+}
+
+// Xóa kênh
+export async function deleteChannel(groupId, chanId) {
+  const t = get(token);
+  await apiRequest(`/groups/${groupId}/channels/${chanId}`, 'DELETE', null, t);
+  await refreshActiveGroup();
 }
 
 // Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện 1-1
@@ -232,9 +319,22 @@ export function appendGroupMessage(msg) {
   const isViewingThisGroup = grp && grp.id === msg.group_id;
   const isTabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
   const me = get(currentUser);
+  const curChan = get(activeChannel);
 
   if (isViewingThisGroup) {
-    currentMessages.update((msgs) => [...msgs, msg]);
+    if (msg.channel_id) {
+      if (curChan && curChan.id === msg.channel_id) {
+        currentMessages.update((msgs) => [...msgs, msg]);
+      } else {
+        channelUnreadCounts.update(map => ({
+          ...map,
+          [msg.channel_id]: (map[msg.channel_id] || 0) + 1
+        }));
+      }
+    } else {
+      currentMessages.update((msgs) => [...msgs, msg]);
+    }
+
     if (!isTabVisible && msg.sender_id !== me?.id) {
       incrementGroupUnread(msg.group_id);
     }

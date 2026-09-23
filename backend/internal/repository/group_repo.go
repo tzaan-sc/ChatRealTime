@@ -28,6 +28,39 @@ func (r *GroupRepository) Create(ctx context.Context, group *models.Group) error
 	now := time.Now()
 	group.CreatedAt = now
 	group.UpdatedAt = now
+	group.IsCommunity = true
+
+	// Khởi tạo mặc định kênh và danh mục
+	if len(group.Categories) == 0 {
+		catID := primitive.NewObjectID().Hex()
+		group.Categories = []models.ChannelCategory{
+			{
+				ID:        catID,
+				Name:      "CHUNG",
+				CreatedAt: now,
+			},
+		}
+		if len(group.Channels) == 0 {
+			group.Channels = []models.Channel{
+				{
+					ID:          primitive.NewObjectID().Hex(),
+					Name:        "thong-bao",
+					Description: "Kênh thông báo chính thức",
+					Type:        models.ChannelTypeAnnouncement,
+					CategoryID:  catID,
+					CreatedAt:   now,
+				},
+				{
+					ID:          primitive.NewObjectID().Hex(),
+					Name:        "chung",
+					Description: "Kênh trò chuyện thảo luận chung",
+					Type:        models.ChannelTypeText,
+					CategoryID:  catID,
+					CreatedAt:   now,
+				},
+			}
+		}
+	}
 
 	_, err := r.collection.InsertOne(ctx, group)
 	return err
@@ -49,13 +82,53 @@ func (r *GroupRepository) GetUserGroups(ctx context.Context, userID primitive.Ob
 	return groups, nil
 }
 
-// GetByID lấy thông tin nhóm theo ID
+// GetByID lấy thông tin nhóm theo ID (tự động nâng cấp kênh mặc định nếu nhóm cũ chưa có)
 func (r *GroupRepository) GetByID(ctx context.Context, groupID primitive.ObjectID) (*models.Group, error) {
 	var group models.Group
 	err := r.collection.FindOne(ctx, bson.M{"_id": groupID}).Decode(&group)
 	if err != nil {
 		return nil, err
 	}
+
+	// Tự động nâng cấp nhóm cũ thành Không gian cộng đồng có kênh mặc định
+	if len(group.Channels) == 0 {
+		catID := primitive.NewObjectID().Hex()
+		now := time.Now()
+		group.Categories = []models.ChannelCategory{
+			{
+				ID:        catID,
+				Name:      "CHUNG",
+				CreatedAt: now,
+			},
+		}
+		group.Channels = []models.Channel{
+			{
+				ID:          primitive.NewObjectID().Hex(),
+				Name:        "thong-bao",
+				Description: "Kênh thông báo chính thức",
+				Type:        models.ChannelTypeAnnouncement,
+				CategoryID:  catID,
+				CreatedAt:   now,
+			},
+			{
+				ID:          primitive.NewObjectID().Hex(),
+				Name:        "chung",
+				Description: "Kênh trò chuyện thảo luận chung",
+				Type:        models.ChannelTypeText,
+				CategoryID:  catID,
+				CreatedAt:   now,
+			},
+		}
+		group.IsCommunity = true
+		_, _ = r.collection.UpdateOne(ctx, bson.M{"_id": group.ID}, bson.M{
+			"$set": bson.M{
+				"is_community": true,
+				"categories":   group.Categories,
+				"channels":     group.Channels,
+			},
+		})
+	}
+
 	return &group, nil
 }
 
@@ -91,11 +164,14 @@ func (r *GroupRepository) IsMember(ctx context.Context, groupID primitive.Object
 	return count > 0, err
 }
 
-// IsAdmin kiểm tra user có phải là Admin nhóm hay không
+// IsAdmin kiểm tra user có phải là Admin hoặc Creator của nhóm hay không
 func (r *GroupRepository) IsAdmin(ctx context.Context, groupID primitive.ObjectID, userID primitive.ObjectID) (bool, error) {
 	count, err := r.collection.CountDocuments(ctx, bson.M{
-		"_id":       groupID,
-		"admin_ids": userID,
+		"_id": groupID,
+		"$or": []bson.M{
+			{"creator_id": userID},
+			{"admin_ids": userID},
+		},
 	})
 	return count > 0, err
 }
@@ -107,6 +183,46 @@ func (r *GroupRepository) UpdateSlowMode(ctx context.Context, groupID primitive.
 			"slow_mode_seconds": slowModeSeconds,
 			"updated_at":        time.Now(),
 		},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// AddCategory thêm danh mục kênh mới
+func (r *GroupRepository) AddCategory(ctx context.Context, groupID primitive.ObjectID, category models.ChannelCategory) error {
+	update := bson.M{
+		"$push": bson.M{"categories": category},
+		"$set":  bson.M{"updated_at": time.Now()},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// DeleteCategory xóa danh mục kênh và chuyển các kênh thuộc danh mục này về không danh mục
+func (r *GroupRepository) DeleteCategory(ctx context.Context, groupID primitive.ObjectID, catID string) error {
+	update := bson.M{
+		"$pull": bson.M{"categories": bson.M{"id": catID}},
+		"$set":  bson.M{"updated_at": time.Now()},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// AddChannel thêm kênh mới vào nhóm
+func (r *GroupRepository) AddChannel(ctx context.Context, groupID primitive.ObjectID, channel models.Channel) error {
+	update := bson.M{
+		"$push": bson.M{"channels": channel},
+		"$set":  bson.M{"updated_at": time.Now()},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// DeleteChannel xóa kênh khỏi nhóm
+func (r *GroupRepository) DeleteChannel(ctx context.Context, groupID primitive.ObjectID, chanID string) error {
+	update := bson.M{
+		"$pull": bson.M{"channels": bson.M{"id": chanID}},
+		"$set":  bson.M{"updated_at": time.Now()},
 	}
 	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
 	return err

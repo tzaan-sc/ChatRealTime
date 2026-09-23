@@ -34,9 +34,9 @@
 
 3. NHÓM, KÊNH & CỘNG ĐỒNG (SPACES, CHANNELS & GROUPS)
 --------------------------------------------------------------------------------
-- [ ] Không gian cộng đồng đa kênh (Spaces / Servers theo phong cách Discord)
-- [ ] Phân chia danh mục kênh (Channel Categories & Text Channels)
-- [ ] Kênh thông báo phát sóng 1 chiều (Broadcast / Announcement Channels)
+- [x] Không gian cộng đồng đa kênh (Spaces / Servers theo phong cách Discord)
+- [x] Phân chia danh mục kênh (Channel Categories & Text Channels)
+- [x] Kênh thông báo phát sóng 1 chiều (Broadcast / Announcement Channels)
 - [ ] Hệ thống phân quyền vai trò chi tiết (RBAC: Quyền gửi bài, xóa tin, mời người, cấm chat)
 - [ ] Tạo link mời tham gia nhóm kèm giới hạn số lượt / thời hạn (Invite Links with Expiry)
 - [ ] Chế độ duyệt thành viên trước khi vào nhóm (Member Approval Requests)

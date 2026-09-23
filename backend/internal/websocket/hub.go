@@ -661,7 +661,7 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 		return
 	}
 
-	// Xác minh thành viên nhóm
+	// Xác minh thành viên nhóm & kiểm tra quyền trong kênh
 	if h.groupRepo != nil {
 		isMember, err := h.groupRepo.IsMember(ctx, groupOID, userOID)
 		if err != nil || !isMember {
@@ -669,11 +669,33 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 			return
 		}
 
-		// Kiểm tra Chế độ chậm (Slow Mode)
 		group, err := h.groupRepo.GetByID(ctx, groupOID)
-		if err == nil && group != nil && group.SlowModeSeconds > 0 {
+		if err == nil && group != nil {
 			isAdmin, _ := h.groupRepo.IsAdmin(ctx, groupOID, userOID)
-			if !isAdmin && group.CreatorID != userOID {
+
+			// Kiểm tra quyền gửi trong Kênh thông báo (Announcement channel)
+			if req.ChannelID != "" {
+				for _, ch := range group.Channels {
+					if ch.ID == req.ChannelID && ch.Type == models.ChannelTypeAnnouncement {
+						if !isAdmin && group.CreatorID != userOID {
+							errEvent := models.WSEvent{
+								Event: "chat:error",
+								Payload: map[string]interface{}{
+									"type":    "announcement_channel",
+									"message": "Kênh thông báo chỉ dành cho quản trị viên đăng bài.",
+								},
+							}
+							errBytes, _ := json.Marshal(errEvent)
+							client.Send <- errBytes
+							return
+						}
+						break
+					}
+				}
+			}
+
+			// Kiểm tra Chế độ chậm (Slow Mode)
+			if group.SlowModeSeconds > 0 && !isAdmin && group.CreatorID != userOID {
 				slowKey := fmt.Sprintf("slowmode:%s:%s", req.GroupID, client.UserID)
 				ttl, _ := h.redisClient.TTL(ctx, slowKey).Result()
 				if ttl > 0 {
@@ -714,6 +736,7 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 
 	newMsg := &models.Message{
 		GroupID:      req.GroupID,
+		ChannelID:    req.ChannelID,
 		SenderID:     client.UserID,
 		SenderName:   senderName,
 		SenderAvatar: senderAvatar,

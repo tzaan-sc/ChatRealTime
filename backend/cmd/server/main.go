@@ -116,6 +116,10 @@ func main() {
 			groups.DELETE("/:id/members/:userId", groupHandler.RemoveMember)
 			groups.GET("/:id/messages", groupHandler.GetGroupMessages)
 			groups.PATCH("/:id/slowmode", groupHandler.UpdateSlowMode)
+			groups.POST("/:id/categories", groupHandler.CreateCategory)
+			groups.DELETE("/:id/categories/:catId", groupHandler.DeleteCategory)
+			groups.POST("/:id/channels", groupHandler.CreateChannel)
+			groups.DELETE("/:id/channels/:chanId", groupHandler.DeleteChannel)
 		}
 	}
 

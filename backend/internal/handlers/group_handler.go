@@ -113,16 +113,17 @@ func (h *GroupHandler) RemoveMember(c *gin.Context) {
 	})
 }
 
-// GetGroupMessages lấy lịch sử tin nhắn của nhóm
+// GetGroupMessages lấy lịch sử tin nhắn của nhóm hoặc theo kênh con
 func (h *GroupHandler) GetGroupMessages(c *gin.Context) {
 	groupID := c.Param("id")
+	channelID := c.Query("channel_id")
 	limitStr := c.DefaultQuery("limit", "50")
 	offsetStr := c.DefaultQuery("offset", "0")
 
 	limit, _ := strconv.ParseInt(limitStr, 10, 64)
 	offset, _ := strconv.ParseInt(offsetStr, 10, 64)
 
-	messages, err := h.msgRepo.GetByGroup(c.Request.Context(), groupID, limit, offset)
+	messages, err := h.msgRepo.GetByGroup(c.Request.Context(), groupID, channelID, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể tải tin nhắn nhóm"})
 		return
@@ -154,6 +155,84 @@ func (h *GroupHandler) UpdateSlowMode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Đã cập nhật chế độ chậm thành công",
 		"seconds": req.Seconds,
+	})
+}
+
+// CreateCategory API tạo danh mục kênh mới
+func (h *GroupHandler) CreateCategory(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.CreateCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tên danh mục không hợp lệ"})
+		return
+	}
+
+	cat, err := h.groupService.CreateCategory(c.Request.Context(), currentUserID, groupID, req.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tạo danh mục thành công",
+		"data":    cat,
+	})
+}
+
+// DeleteCategory API xóa danh mục kênh
+func (h *GroupHandler) DeleteCategory(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	catID := c.Param("catId")
+
+	if err := h.groupService.DeleteCategory(c.Request.Context(), currentUserID, groupID, catID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Xóa danh mục thành công",
+	})
+}
+
+// CreateChannel API tạo kênh chat con mới
+func (h *GroupHandler) CreateChannel(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.CreateChannelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thông tin kênh không hợp lệ"})
+		return
+	}
+
+	ch, err := h.groupService.CreateChannel(c.Request.Context(), currentUserID, groupID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tạo kênh thành công",
+		"data":    ch,
+	})
+}
+
+// DeleteChannel API xóa kênh khỏi nhóm
+func (h *GroupHandler) DeleteChannel(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	chanID := c.Param("chanId")
+
+	if err := h.groupService.DeleteChannel(c.Request.Context(), currentUserID, groupID, chanID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Xóa kênh thành công",
 	})
 }
 

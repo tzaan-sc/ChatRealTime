@@ -5,6 +5,7 @@
 
   export let receiverID = '';
   export let groupID = '';
+  export let channelID = '';
   export let content = '';
   export let isSilent = false;
   export let onScheduled = () => {};
@@ -36,12 +37,17 @@
   }
 
   async function handleSchedule() {
-    if (!scheduledDate) {
-      errorMessage = 'Vui lòng chọn thời gian gửi';
+    if (!content.trim()) {
+      errorMessage = 'Nội dung tin nhắn không được để trống';
       return;
     }
 
     const targetTime = new Date(scheduledDate);
+    if (isNaN(targetTime.getTime())) {
+      errorMessage = 'Thời gian hẹn không hợp lệ';
+      return;
+    }
+
     if (targetTime.getTime() <= Date.now()) {
       errorMessage = 'Thời gian hẹn phải ở tương lai';
       return;
@@ -60,6 +66,9 @@
 
       if (groupID) {
         payload.group_id = groupID;
+        if (channelID) {
+          payload.channel_id = channelID;
+        }
       } else {
         payload.receiver_id = receiverID;
       }

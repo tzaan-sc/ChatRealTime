@@ -65,8 +65,8 @@ func (r *MessageRepository) GetByConversation(ctx context.Context, conversationI
 	return messages, nil
 }
 
-// GetByGroup lấy lịch sử tin nhắn của một nhóm chat
-func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, limit int64, offset int64) ([]models.Message, error) {
+// GetByGroup lấy lịch sử tin nhắn của một nhóm chat hoặc theo kênh cụ thể
+func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, channelID string, limit int64, offset int64) ([]models.Message, error) {
 	opts := options.Find().
 		SetSort(bson.D{{Key: "created_at", Value: -1}}).
 		SetLimit(limit).
@@ -78,6 +78,9 @@ func (r *MessageRepository) GetByGroup(ctx context.Context, groupID string, limi
 			{"thread_root_id": ""},
 			{"thread_root_id": bson.M{"$exists": false}},
 		},
+	}
+	if channelID != "" {
+		filter["channel_id"] = channelID
 	}
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
