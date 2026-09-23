@@ -42,7 +42,7 @@
 - [x] Chế độ duyệt thành viên trước khi vào nhóm (Member Approval Requests)
 - [x] Khảo sát & Bình chọn trực tuyến thời gian thực (Interactive Polls & Quizzes)
 - [x] Sự kiện nhóm & Lịch hẹn chung (Group Events)
-- [ ] Thống kê phân tích hoạt động nhóm (Group Analytics & Member Insights)
+- [x] Thống kê phân tích hoạt động nhóm (Group Analytics & Member Insights)
 
 4. HỘI NGHỊ TRUYỀN HÌNH & PHÒNG THOẠI (WEBRTC SFU)
 --------------------------------------------------------------------------------

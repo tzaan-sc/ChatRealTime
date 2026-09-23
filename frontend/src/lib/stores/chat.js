@@ -420,6 +420,17 @@ export function removeEventLocally(eventId) {
   groupEvents.update((events) => events.filter((e) => e.id !== eventId));
 }
 
+// ==========================================
+// PHASE 4: GROUP ANALYTICS & INSIGHTS
+// ==========================================
+
+// Lấy báo cáo thống kê hoạt động nhóm
+export async function getGroupAnalytics(groupId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/analytics`, 'GET', null, t);
+  return res.data;
+}
+
 // Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện 1-1
 export function appendMessage(msg) {
   const active = get(activeConversation);

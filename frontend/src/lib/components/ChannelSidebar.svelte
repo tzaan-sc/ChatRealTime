@@ -19,15 +19,18 @@
     Trash2,
     Settings,
     Users,
-    Calendar
+    Calendar,
+    BarChart3
   } from 'lucide-svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
   import GroupEventsModal from './GroupEventsModal.svelte';
+  import GroupAnalyticsModal from './GroupAnalyticsModal.svelte';
 
   export let onOpenMembersModal = () => {};
 
   let showCreateModal = false;
   let showEventsModal = false;
+  let showAnalyticsModal = false;
   let targetCategoryID = '';
   let collapsedCategories = {}; // map catID -> boolean
 
@@ -103,6 +106,9 @@
       </div>
     </div>
     <div class="header-tools">
+      <button class="tool-btn" on:click={() => (showAnalyticsModal = true)} title="Thống kê hoạt động nhóm">
+        <BarChart3 size={16} />
+      </button>
       <button class="tool-btn" on:click={onOpenMembersModal} title="Quản lý thành viên & Cài đặt">
         <Settings size={16} />
       </button>
@@ -274,6 +280,14 @@
     groupID={$activeGroup.id}
     {channels}
     onClose={() => (showEventsModal = false)}
+  />
+{/if}
+
+{#if showAnalyticsModal && $activeGroup}
+  <GroupAnalyticsModal
+    groupID={$activeGroup.id}
+    groupName={$activeGroup.name || 'Cộng đồng'}
+    onClose={() => (showAnalyticsModal = false)}
   />
 {/if}
 

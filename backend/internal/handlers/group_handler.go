@@ -572,4 +572,18 @@ func (h *GroupHandler) DeleteEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Đã xóa sự kiện"})
 }
 
+// GetGroupAnalytics API lấy báo cáo thống kê nhóm
+func (h *GroupHandler) GetGroupAnalytics(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	analytics, err := h.groupService.GetGroupAnalytics(c.Request.Context(), currentUserID, groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": analytics})
+}
+
 

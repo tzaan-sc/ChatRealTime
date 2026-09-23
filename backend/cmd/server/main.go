@@ -152,6 +152,9 @@ func main() {
 			groups.GET("/:id/events", groupHandler.GetGroupEvents)
 			groups.POST("/:id/events/:eventId/rsvp", groupHandler.RSVPEvent)
 			groups.DELETE("/:id/events/:eventId", groupHandler.DeleteEvent)
+
+			// Phase 4: Group Analytics & Insights
+			groups.GET("/:id/analytics", groupHandler.GetGroupAnalytics)
 		}
 	}
 

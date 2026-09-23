@@ -1141,3 +1141,37 @@ func (s *GroupService) DeleteEvent(ctx context.Context, userID, groupID, eventID
 	s.broadcastGroup(groupID, "group:event_deleted", map[string]string{"event_id": eventID})
 	return nil
 }
+
+// ============================================================================
+// PHASE 4: GROUP ANALYTICS & INSIGHTS
+// ============================================================================
+
+// GetGroupAnalytics lấy toàn bộ số liệu thống kê phân tích của nhóm
+func (s *GroupService) GetGroupAnalytics(ctx context.Context, userID, groupID string) (*models.GroupAnalyticsResponse, error) {
+	groupOID, err := primitive.ObjectIDFromHex(groupID)
+	if err != nil {
+		return nil, errors.New("group_id không hợp lệ")
+	}
+	userOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("user_id không hợp lệ")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupOID)
+	if err != nil {
+		return nil, errors.New("nhóm không tồn tại")
+	}
+
+	isMember := false
+	for _, m := range group.MemberIDs {
+		if m == userOID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return nil, errors.New("bạn không phải thành viên của nhóm này")
+	}
+
+	return s.messageRepo.GetGroupAnalytics(ctx, groupID, group)
+}
