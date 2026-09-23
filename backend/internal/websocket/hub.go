@@ -673,6 +673,21 @@ func (h *Hub) handleSendGroupMessage(client *Client, rawPayload interface{}) {
 		if err == nil && group != nil {
 			isAdmin, _ := h.groupRepo.IsAdmin(ctx, groupOID, userOID)
 
+			// Kiểm tra nếu thành viên đang bị cấm chat (Muted)
+			if mutedUntil, isMuted := group.MutedMembers[client.UserID]; isMuted && mutedUntil.After(time.Now()) {
+				errEvent := models.WSEvent{
+					Event: "chat:error",
+					Payload: map[string]interface{}{
+						"type":        "member_muted",
+						"message":     fmt.Sprintf("Bạn đang bị cấm chat trong nhóm này đến %s", mutedUntil.Format("15:04 02/01/2006")),
+						"muted_until": mutedUntil,
+					},
+				}
+				errBytes, _ := json.Marshal(errEvent)
+				client.Send <- errBytes
+				return
+			}
+
 			// Kiểm tra quyền gửi trong Kênh thông báo (Announcement channel)
 			if req.ChannelID != "" {
 				for _, ch := range group.Channels {

@@ -30,13 +30,16 @@
     MoreVertical,
     Eye,
     EyeOff,
-    Bookmark
+    Bookmark,
+    Link2
   } from 'lucide-svelte';
   import { onMount, onDestroy } from 'svelte';
   import CreateGroupModal from './CreateGroupModal.svelte';
+  import InviteJoinModal from './InviteJoinModal.svelte';
 
   let showUsersModal = false;
   let showCreateGroupModal = false;
+  let showInviteJoinModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
@@ -145,6 +148,9 @@
         {:else}
           <BellOff size={18} style="color: #ef4444;" />
         {/if}
+      </button>
+      <button class="icon-btn" title="Tham gia nhóm bằng liên kết mời" on:click={() => (showInviteJoinModal = true)}>
+        <Link2 size={19} />
       </button>
       <button class="icon-btn" title="Tạo nhóm trò chuyện mới" on:click={() => (showCreateGroupModal = true)}>
         <Users size={19} />
@@ -298,9 +304,14 @@
       {#if filteredGroups.length === 0}
         <div class="empty-state">
           <p>{searchQuery.trim() ? 'Không tìm thấy nhóm nào phù hợp' : 'Bạn chưa tham gia nhóm nào.'}</p>
-          <button class="create-group-prompt-btn" on:click={() => (showCreateGroupModal = true)}>
-            + Tạo nhóm ngay
-          </button>
+          <div class="empty-group-btns">
+            <button class="create-group-prompt-btn" on:click={() => (showCreateGroupModal = true)}>
+              + Tạo nhóm ngay
+            </button>
+            <button class="join-link-prompt-btn" on:click={() => (showInviteJoinModal = true)}>
+              🔗 Tham gia bằng link
+            </button>
+          </div>
         </div>
       {:else}
         {#each filteredGroups as group}
@@ -389,6 +400,11 @@
 <!-- Modal Tạo Nhóm Mới -->
 {#if showCreateGroupModal}
   <CreateGroupModal onClose={() => (showCreateGroupModal = false)} />
+{/if}
+
+<!-- Modal Tham gia bằng liên kết mời -->
+{#if showInviteJoinModal}
+  <InviteJoinModal onClose={() => (showInviteJoinModal = false)} />
 {/if}
 
 <style>
@@ -668,16 +684,41 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  .create-group-prompt-btn {
+  .empty-group-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-top: 14px;
+    width: 100%;
+    max-width: 200px;
+    align-items: center;
+  }
+  .create-group-prompt-btn {
+    width: 100%;
     background: var(--accent-gradient);
     border: none;
     color: #fff;
-    padding: 6px 14px;
+    padding: 7px 14px;
     border-radius: var(--radius-sm);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
+  }
+  .join-link-prompt-btn {
+    width: 100%;
+    background: rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    color: #c4b5fd;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .join-link-prompt-btn:hover {
+    background: rgba(167, 139, 250, 0.25);
+    color: #fff;
   }
 
   /* Modal Overlay */

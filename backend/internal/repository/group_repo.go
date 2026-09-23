@@ -228,3 +228,81 @@ func (r *GroupRepository) DeleteChannel(ctx context.Context, groupID primitive.O
 	return err
 }
 
+// IsModeratorOrAdmin kiểm tra user có quyền Điều hành viên (Moderator), Quản trị viên (Admin) hoặc Chủ nhóm (Creator)
+func (r *GroupRepository) IsModeratorOrAdmin(ctx context.Context, groupID primitive.ObjectID, userID primitive.ObjectID) (bool, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{
+		"_id": groupID,
+		"$or": []bson.M{
+			{"creator_id": userID},
+			{"admin_ids": userID},
+			{"moderator_ids": userID},
+		},
+	})
+	return count > 0, err
+}
+
+// UpdateMemberRole cập nhật vai trò của thành viên trong nhóm ("admin", "moderator", "member")
+func (r *GroupRepository) UpdateMemberRole(ctx context.Context, groupID primitive.ObjectID, targetUserID primitive.ObjectID, role string) error {
+	var update bson.M
+	switch role {
+	case "admin":
+		update = bson.M{
+			"$addToSet": bson.M{"admin_ids": targetUserID},
+			"$pull":     bson.M{"moderator_ids": targetUserID},
+			"$set":      bson.M{"updated_at": time.Now()},
+		}
+	case "moderator":
+		update = bson.M{
+			"$addToSet": bson.M{"moderator_ids": targetUserID},
+			"$pull":     bson.M{"admin_ids": targetUserID},
+			"$set":      bson.M{"updated_at": time.Now()},
+		}
+	default: // "member"
+		update = bson.M{
+			"$pull": bson.M{
+				"admin_ids":     targetUserID,
+				"moderator_ids": targetUserID,
+			},
+			"$set": bson.M{"updated_at": time.Now()},
+		}
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// MuteMember cấm chat thành viên trong số phút chỉ định (durationMinutes <= 0 để bỏ cấm)
+func (r *GroupRepository) MuteMember(ctx context.Context, groupID primitive.ObjectID, targetUserID primitive.ObjectID, durationMinutes int) error {
+	var update bson.M
+	fieldPath := "muted_members." + targetUserID.Hex()
+	if durationMinutes > 0 {
+		mutedUntil := time.Now().Add(time.Duration(durationMinutes) * time.Minute)
+		update = bson.M{
+			"$set": bson.M{
+				fieldPath:    mutedUntil,
+				"updated_at": time.Now(),
+			},
+		}
+	} else {
+		update = bson.M{
+			"$unset": bson.M{fieldPath: ""},
+			"$set":   bson.M{"updated_at": time.Now()},
+		}
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, update)
+	return err
+}
+
+// UpdateSettings cập nhật cấu hình duyệt thành viên và chế độ chậm
+func (r *GroupRepository) UpdateSettings(ctx context.Context, groupID primitive.ObjectID, requireApproval *bool, slowModeSeconds *int) error {
+	setFields := bson.M{"updated_at": time.Now()}
+	if requireApproval != nil {
+		setFields["require_approval"] = *requireApproval
+	}
+	if slowModeSeconds != nil {
+		setFields["slow_mode_seconds"] = *slowModeSeconds
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": groupID}, bson.M{"$set": setFields})
+	return err
+}
+
+

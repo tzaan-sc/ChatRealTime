@@ -34,6 +34,8 @@ func main() {
 	scheduledRepo := repository.NewScheduledRepository(database.MongoDB)
 	reminderRepo := repository.NewReminderRepository(database.MongoDB)
 	draftRepo := repository.NewDraftRepository(database.MongoDB)
+	inviteRepo := repository.NewInviteRepository(database.MongoDB)
+	joinReqRepo := repository.NewJoinRequestRepository(database.MongoDB)
 
 	// 4. Khởi tạo WebSocket Hub và chạy ngầm
 	hub := websocket.NewHub(database.RedisClient, msgRepo, convRepo, groupRepo, userRepo, draftRepo)
@@ -42,7 +44,7 @@ func main() {
 	// 5. Khởi tạo Services
 	authService := service.NewAuthService(userRepo)
 	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
-	groupService := service.NewGroupService(groupRepo, userRepo)
+	groupService := service.NewGroupService(groupRepo, userRepo, inviteRepo, joinReqRepo)
 
 	// Khởi tạo Background Scheduler Service (quét tin hẹn giờ & nhắc việc)
 	schedulerService := service.NewSchedulerService(database.RedisClient, msgRepo, convRepo, scheduledRepo, reminderRepo)
@@ -74,6 +76,10 @@ func main() {
 	{
 		// Upload File (ảnh, tệp đính kèm, voice note)
 		api.POST("/upload", middleware.AuthMiddleware(), uploadHandler.UploadFile)
+
+		// Invite Links preview & join
+		api.GET("/invites/:code/preview", middleware.AuthMiddleware(), groupHandler.PreviewInvite)
+		api.POST("/invites/:code/join", middleware.AuthMiddleware(), groupHandler.JoinViaInvite)
 
 		// Auth Routes
 		auth := api.Group("/auth")
@@ -120,6 +126,17 @@ func main() {
 			groups.DELETE("/:id/categories/:catId", groupHandler.DeleteCategory)
 			groups.POST("/:id/channels", groupHandler.CreateChannel)
 			groups.DELETE("/:id/channels/:chanId", groupHandler.DeleteChannel)
+
+			// Phase 2: RBAC, Invites & Approvals
+			groups.PATCH("/:id/members/:userId/role", groupHandler.UpdateMemberRole)
+			groups.POST("/:id/members/:userId/mute", groupHandler.MuteMember)
+			groups.PATCH("/:id/settings", groupHandler.UpdateSettings)
+			groups.POST("/:id/invites", groupHandler.CreateInvite)
+			groups.GET("/:id/invites", groupHandler.GetGroupInvites)
+			groups.DELETE("/:id/invites/:code", groupHandler.RevokeInvite)
+			groups.GET("/:id/join-requests", groupHandler.GetPendingJoinRequests)
+			groups.POST("/:id/join-requests/:requestId/approve", groupHandler.ApproveJoinRequest)
+			groups.POST("/:id/join-requests/:requestId/reject", groupHandler.RejectJoinRequest)
 		}
 	}
 

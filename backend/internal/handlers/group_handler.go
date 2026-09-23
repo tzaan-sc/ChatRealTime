@@ -236,3 +236,196 @@ func (h *GroupHandler) DeleteChannel(c *gin.Context) {
 	})
 }
 
+// UpdateMemberRole API cập nhật vai trò thành viên
+func (h *GroupHandler) UpdateMemberRole(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	targetUserID := c.Param("userId")
+
+	var req models.UpdateMemberRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Vai trò không hợp lệ"})
+		return
+	}
+
+	if err := h.groupService.UpdateMemberRole(c.Request.Context(), currentUserID, groupID, targetUserID, req.Role); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Cập nhật vai trò thành công"})
+}
+
+// MuteMember API cấm chat hoặc bỏ cấm chat thành viên
+func (h *GroupHandler) MuteMember(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	targetUserID := c.Param("userId")
+
+	var req models.MuteMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ"})
+		return
+	}
+
+	if err := h.groupService.MuteMember(c.Request.Context(), currentUserID, groupID, targetUserID, req.DurationMinutes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Thao tác thành công",
+		"duration_minutes": req.DurationMinutes,
+	})
+}
+
+// UpdateSettings API cập nhật cài đặt duyệt thành viên và chế độ chậm
+func (h *GroupHandler) UpdateSettings(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.UpdateGroupSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu cài đặt không hợp lệ"})
+		return
+	}
+
+	if err := h.groupService.UpdateSettings(c.Request.Context(), currentUserID, groupID, req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã lưu cài đặt nhóm thành công"})
+}
+
+// CreateInvite API tạo liên kết mời vào nhóm
+func (h *GroupHandler) CreateInvite(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	var req models.CreateInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu tạo link mời không hợp lệ"})
+		return
+	}
+
+	inv, err := h.groupService.CreateInvite(c.Request.Context(), currentUserID, groupID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tạo liên kết mời thành công",
+		"data":    inv,
+	})
+}
+
+// GetGroupInvites API lấy danh sách liên kết mời của nhóm
+func (h *GroupHandler) GetGroupInvites(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	list, err := h.groupService.GetGroupInvites(c.Request.Context(), currentUserID, groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+// RevokeInvite API thu hồi mã mời
+func (h *GroupHandler) RevokeInvite(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	code := c.Param("code")
+
+	if err := h.groupService.RevokeInvite(c.Request.Context(), currentUserID, groupID, code); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã thu hồi liên kết mời thành công"})
+}
+
+// PreviewInvite API xem trước thông tin nhóm qua link mời
+func (h *GroupHandler) PreviewInvite(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	code := c.Param("code")
+
+	preview, err := h.groupService.PreviewInvite(c.Request.Context(), currentUserID, code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": preview})
+}
+
+// JoinViaInvite API tham gia nhóm qua link mời
+func (h *GroupHandler) JoinViaInvite(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	code := c.Param("code")
+
+	isJoined, requiresApproval, err := h.groupService.JoinViaInvite(c.Request.Context(), currentUserID, code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"is_joined":         isJoined,
+		"requires_approval": requiresApproval,
+		"message": func() string {
+			if isJoined {
+				return "Tham gia nhóm thành công"
+			}
+			return "Đã gửi yêu cầu tham gia. Vui lòng chờ Quản trị viên duyệt!"
+		}(),
+	})
+}
+
+// GetPendingJoinRequests API xem danh sách đơn chờ duyệt
+func (h *GroupHandler) GetPendingJoinRequests(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	list, err := h.groupService.GetPendingJoinRequests(c.Request.Context(), currentUserID, groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+// ApproveJoinRequest API duyệt thành viên vào nhóm
+func (h *GroupHandler) ApproveJoinRequest(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	requestID := c.Param("requestId")
+
+	if err := h.groupService.ApproveJoinRequest(c.Request.Context(), currentUserID, groupID, requestID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã phê duyệt thành viên vào nhóm"})
+}
+
+// RejectJoinRequest API từ chối đơn vào nhóm
+func (h *GroupHandler) RejectJoinRequest(c *gin.Context) {
+	currentUserID := c.GetString("user_id")
+	groupID := c.Param("id")
+	requestID := c.Param("requestId")
+
+	if err := h.groupService.RejectJoinRequest(c.Request.Context(), currentUserID, groupID, requestID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Đã từ chối đơn tham gia"})
+}
+
+

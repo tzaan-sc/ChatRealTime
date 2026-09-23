@@ -228,6 +228,87 @@ export async function deleteChannel(groupId, chanId) {
   await refreshActiveGroup();
 }
 
+// Cập nhật vai trò thành viên (admin, moderator, member)
+export async function updateMemberRole(groupId, userId, role) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/members/${userId}/role`, 'PATCH', { role }, t);
+  await refreshActiveGroup();
+  return res;
+}
+
+// Cấm chat hoặc gỡ cấm chat thành viên
+export async function muteMember(groupId, userId, durationMinutes) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/members/${userId}/mute`, 'POST', { duration_minutes: durationMinutes }, t);
+  await refreshActiveGroup();
+  return res;
+}
+
+// Cập nhật cài đặt nhóm (phê duyệt thành viên, chế độ chậm)
+export async function updateGroupSettings(groupId, settings) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/settings`, 'PATCH', settings, t);
+  await refreshActiveGroup();
+  return res;
+}
+
+// Tạo liên kết mời mới
+export async function createGroupInvite(groupId, { max_uses, expire_hours }) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/invites`, 'POST', { max_uses, expire_hours }, t);
+  return res.data;
+}
+
+// Lấy danh sách liên kết mời của nhóm
+export async function getGroupInvites(groupId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/invites`, 'GET', null, t);
+  return res.data || [];
+}
+
+// Thu hồi mã mời
+export async function revokeGroupInvite(groupId, code) {
+  const t = get(token);
+  await apiRequest(`/groups/${groupId}/invites/${code}`, 'DELETE', null, t);
+}
+
+// Xem trước nhóm qua mã mời
+export async function previewInvite(code) {
+  const t = get(token);
+  const res = await apiRequest(`/invites/${code}/preview`, 'GET', null, t);
+  return res.data;
+}
+
+// Tham gia nhóm qua mã mời
+export async function joinViaInvite(code) {
+  const t = get(token);
+  const res = await apiRequest(`/invites/${code}/join`, 'POST', null, t);
+  await loadUserGroups();
+  return res;
+}
+
+// Lấy danh sách đơn chờ duyệt
+export async function getPendingJoinRequests(groupId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/join-requests`, 'GET', null, t);
+  return res.data || [];
+}
+
+// Phê duyệt đơn gia nhập
+export async function approveJoinRequest(groupId, requestId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/join-requests/${requestId}/approve`, 'POST', null, t);
+  await refreshActiveGroup();
+  return res;
+}
+
+// Từ chối đơn gia nhập
+export async function rejectJoinRequest(groupId, requestId) {
+  const t = get(token);
+  const res = await apiRequest(`/groups/${groupId}/join-requests/${requestId}/reject`, 'POST', null, t);
+  return res;
+}
+
 // Thêm tin nhắn mới vào danh sách hiện tại nếu đang mở đúng cuộc trò chuyện 1-1
 export function appendMessage(msg) {
   const active = get(activeConversation);
