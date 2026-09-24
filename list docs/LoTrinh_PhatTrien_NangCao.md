@@ -92,11 +92,15 @@ flowchart TB
 <a name="3-ban-do-10-dai-phan-he"></a>
 ## 3. 🧩 Bản đồ 10 Đại Phân hệ Tính Năng Nâng Cao
 
-### 🛡️ Phân hệ 1: Bảo Mật, Quyền Riêng Tư & Mã Hóa Đầu Cuối (E2EE)
+### 🛡️ Phân hệ 1: Xác Thực Hiện Đại, Bảo Mật, Quyền Riêng Tư & Mã Hóa Đầu Cuối (E2EE)
+- **Đăng nhập mạng xã hội đa nền tảng (OAuth 2.0 & OpenID Connect):** Tích hợp đăng nhập 1 chạm với Google (Google Sign-In), Facebook Login, GitHub OAuth cho lập trình viên, Sign in with Apple, Discord và X (Twitter). Tự động đồng bộ avatar, họ tên và liên kết nhiều tài khoản mạng xã hội vào cùng 1 profile.
+- **Xác thực không mật khẩu & Khôi phục tài khoản:** Đăng nhập qua Email Magic Link, xác thực OTP qua SMS/Zalo ZNS, luồng Quên & Đặt lại mật khẩu an toàn với token một lần có hạn dùng ngắn.
+- **Đăng nhập doanh nghiệp (Enterprise SSO):** Hỗ trợ SAML 2.0 và OIDC cho phép tích hợp tài khoản nội bộ công ty (Okta, Azure AD, Google Workspace).
+- **Bảo vệ phiên & Chống Bot:** Tự động xoay vòng Token an toàn (Silent Refresh & Refresh Token Rotation), tích hợp Cloudflare Turnstile / reCAPTCHA v3 chống bot spam tài khoản rác, cảnh báo thiết bị lạ đăng nhập.
 - **Mã hóa E2EE (End-to-End Encryption):** Áp dụng thuật toán Signal Protocol (Double Ratchet + X3DH) cho hội thoại 1-1 và MLS (Messaging Layer Security) cho nhóm. Server chỉ đóng vai trò trung chuyển gói tin mã hóa, không bao giờ đọc được nội dung tin nhắn.
 - **Tin nhắn tự hủy (Disappearing Messages):** Đặt thời gian tồn tại cho tin nhắn (5 giây, 1 phút, 24 giờ). Khi hết hạn, tự động kích hoạt animation tan biến và xóa sạch tại cả 2 đầu thiết bị cùng database.
 - **Chống rò rỉ dữ liệu & Screenshot Detection:** Phát hiện và cảnh báo khi có người dùng chụp ảnh màn hình cuộc hội thoại (trên Mobile/Desktop) hoặc làm mờ nội dung khi chuyển đổi ứng dụng.
-- **Xác thực 2 lớp sinh trắc học (2FA & WebAuthn):** Đăng nhập bằng vân tay, FaceID hoặc mã TOTP (Google Authenticator).
+- **Xác thực 2 lớp sinh trắc học (2FA & WebAuthn):** Đăng nhập bằng vân tay, FaceID hoặc mã TOTP (Google Authenticator / Authy), chuẩn WebAuthn / FIDO2 Passkeys.
 - **Quản lý phiên đăng nhập đa thiết bị (Multi-Device Active Sessions):** Hiển thị danh sách thiết bị đang đăng nhập (vị trí IP, trình duyệt, hệ điều hành). Hỗ trợ quét mã QR để đăng nhập nhanh như Zalo/Telegram Web và nút bấm đăng xuất từ xa khỏi các thiết bị lạ.
 
 ---
@@ -207,14 +211,29 @@ Dưới đây là 10 giai đoạn phát triển tiếp nối từ Giai đoạn 1
 
 ---
 
-### 🔹 GIAI ĐOẠN 12: ĐĂNG NHẬP ĐA THIẾT BỊ, QUÉT MÃ QR & MÃ HÓA ĐẦU CUỐI (E2EE)
-> **Mục tiêu:** Đảm bảo bảo mật tối cao chuẩn Telegram/Signal và trải nghiệm đăng nhập không mật khẩu hiện đại.
+### 🔹 GIAI ĐOẠN 12: ĐĂNG NHẬP MẠNG XÃ HỘI (OAUTH 2.0), ĐA THIẾT BỊ & MÃ HÓA ĐẦU CUỐI (E2EE)
+> **Mục tiêu:** Mở rộng trải nghiệm đăng ký/đăng nhập 1-chạm qua Google, Facebook, GitHub, Apple, đảm bảo bảo mật tối cao chuẩn Telegram/Signal và quản lý đa phiên an toàn.
 
 #### 1. Thành phần Công nghệ
-- **Bảo mật:** Web Crypto API, Signal Protocol (libsignal-protocol-javascript / Double Ratchet), Ed25519 & Curve25519 Keys.
-- **Xác thực:** QR Code Session Handshake qua WebSocket.
+- **Xác thực mạng xã hội (OAuth 2.0 / OIDC):** Google Identity Services (GIS), Facebook Graph API, GitHub OAuth Apps, Apple ID Sign-in.
+- **Xác thực phiên & Token:** Golang JWT + Refresh Token Rotation lưu trữ trong Redis (Whitelist/Blacklist).
+- **Chống spam bot:** Cloudflare Turnstile API hoặc reCAPTCHA v3.
+- **Bảo mật & E2EE:** Web Crypto API, Signal Protocol (libsignal-protocol-javascript / Double Ratchet), Ed25519 & Curve25519 Keys.
+- **Xác thực nhanh:** QR Code Session Handshake qua WebSocket.
 
 #### 2. Checklist Triển khai
+- [ ] Xây dựng mô-đun **Đăng nhập Mạng xã hội (OAuth 2.0 / OpenID Connect)**:
+  - Backend API trao đổi mã Token: `POST /api/auth/oauth/{provider}` (google, facebook, github, apple).
+  - Tự động lấy email, tên hiển thị, avatar và liên kết vào tài khoản người dùng tương ứng trong MongoDB.
+  - Cho phép người dùng liên kết (Link) hoặc hủy liên kết (Unlink) nhiều tài khoản mạng xã hội trong phần Cài đặt cá nhân.
+- [ ] Tính năng **Khôi phục mật khẩu & Xác thực bổ sung**:
+  - `POST /api/auth/forgot-password` gửi email mã OTP / link đặt lại mật khẩu có hiệu lực 15 phút.
+  - Đăng nhập không mật khẩu qua **Email Magic Link**.
+  - Đăng ký & Xác thực số điện thoại qua mã OTP SMS / Zalo ZNS.
+- [ ] Cơ chế **Refresh Token Rotation & Silent Refresh**:
+  - Access Token ngắn hạn (15 phút) lưu trong bộ nhớ; Refresh Token dài hạn (30 ngày) lưu trữ trong HttpOnly Cookie bảo mật.
+  - Tự động cấp mới Access Token ngầm dưới nền mà không gián đoạn người dùng.
+- [ ] Tích hợp **Cloudflare Turnstile** chống bot tự động spam form đăng ký và brute-force đăng nhập.
 - [ ] Xây dựng luồng đăng nhập bằng mã QR:
   - Web client tạo phiên tạm thời `session_token` hiển thị dưới dạng QR.
   - Ứng dụng điện thoại đã đăng nhập quét mã $\to$ xác nhận danh tính $\to$ Web tự động đăng nhập.

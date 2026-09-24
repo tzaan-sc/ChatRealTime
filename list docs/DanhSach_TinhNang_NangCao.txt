@@ -3,17 +3,34 @@
     Dạng: Bảng Checklist tính năng thuần túy (Theo dõi tiến độ phát triển)
 ================================================================================
 
-1. BẢO MẬT & QUYỀN RIÊNG TƯ (SECURITY & PRIVACY)
+1. XÁC THỰC HIỆN ĐẠI, BẢO MẬT & QUYỀN RIÊNG TƯ (AUTHENTICATION, SECURITY & PRIVACY)
 --------------------------------------------------------------------------------
+[Xác thực nâng cao & Đăng nhập mạng xã hội (OAuth 2.0 & Identity)]
+- [ ] Đăng nhập nhanh bằng tài khoản Google (Google Sign-In / OAuth 2.0 & OpenID Connect)
+- [ ] Đăng nhập bằng tài khoản Facebook (Facebook Login Graph API / OAuth 2.0)
+- [ ] Đăng nhập tài khoản nhà phát triển GitHub (GitHub OAuth 2.0)
+- [ ] Đăng nhập bảo mật với Apple ID (Sign in with Apple)
+- [ ] Đăng nhập qua tài khoản Discord / X (Twitter)
+- [ ] Liên kết và gỡ liên kết nhiều tài khoản mạng xã hội vào cùng 1 profile (Social Account Linking & Unlinking)
+- [ ] Quên mật khẩu & Đặt lại mật khẩu an toàn qua Email OTP / Reset Link bảo mật (Forgot & Reset Password)
+- [ ] Xác thực địa chỉ Email khi đăng ký tài khoản (Email Verification & Activation Token)
+- [ ] Đăng nhập không cần mật khẩu qua đường dẫn ma thuật gửi về email (Passwordless Magic Link)
+- [ ] Đăng ký & Đăng nhập bằng số điện thoại xác thực OTP qua SMS / Zalo ZNS (Phone Number OTP Login)
+- [ ] Đăng nhập một lần cho tổ chức/doanh nghiệp (Enterprise Single Sign-On - SSO SAML 2.0 / OIDC / Okta)
+- [ ] Chống spam bot đăng ký và tấn công dò quét mật khẩu (Cloudflare Turnstile / reCAPTCHA v3 / Rate Limiting)
+- [ ] Cơ chế làm mới phiên tự động và an toàn (Silent Token Refresh & Refresh Token Rotation)
+- [ ] Cảnh báo đăng nhập từ thiết bị lạ / IP bất thường qua Email thông báo (Suspicious Login Alert)
+
+[Bảo mật chuyên sâu & Quyền riêng tư (Security, Privacy & E2EE)]
 - [ ] Mã hóa đầu cuối 1-1 (E2EE - Signal Protocol / Double Ratchet)
 - [ ] Mã hóa đầu cuối nhóm chat (MLS - Messaging Layer Security)
 - [ ] Tin nhắn tự hủy (Disappearing Messages - hẹn giờ tự xóa 5s, 1m, 24h)
 - [ ] Cảnh báo / Chặn chụp màn hình (Screenshot Prevention & Detection)
-- [ ] Đăng nhập nhanh bằng quét mã QR (QR Code Login)
-- [ ] Xác thực 2 bước (2FA - TOTP Google Authenticator)
-- [ ] Đăng nhập sinh trắc học / Không cần mật khẩu (Passkeys / WebAuthn)
+- [ ] Đăng nhập nhanh bằng quét mã QR (QR Code Login từ điện thoại lên Web/Desktop)
+- [ ] Xác thực 2 bước (2FA - TOTP Google Authenticator / Authy)
+- [ ] Đăng nhập sinh trắc học / Không cần mật khẩu (Passkeys / WebAuthn / FIDO2)
 - [ ] Quản lý phiên đăng nhập đa thiết bị (Active Sessions & Đăng xuất từ xa)
-- [ ] Khóa ứng dụng bằng mã PIN / FaceID / Vân tay
+- [ ] Khóa ứng dụng bằng mã PIN / FaceID / Vân tay (App Lock)
 - [ ] Chế độ trò chuyện bí mật không lưu máy chủ (Secret Chat)
 - [ ] Ẩn trạng thái hoạt động / Ẩn thời gian online cuối cùng (Last Seen Privacy)
 - [ ] Chặn người dùng và báo cáo tài khoản vi phạm (Block & Report)

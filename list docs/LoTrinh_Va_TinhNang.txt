@@ -20,6 +20,10 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Middleware bảo vệ REST endpoint và xác thực handshake WebSocket.
   - [x] Lấy danh sách bạn bè / người dùng trong hệ thống để nhắn tin.
   - [x] Tìm kiếm người dùng theo username/email.
+  - [ ] Đăng nhập mạng xã hội OAuth 2.0 (Google, Facebook, GitHub, Apple).
+  - [ ] Quên mật khẩu & Đặt lại mật khẩu an toàn qua OTP Email (Forgot & Reset Password).
+  - [ ] Đăng nhập không cần mật khẩu (Magic Link & SMS/Zalo OTP).
+  - [ ] Quét mã QR đăng nhập nhanh và quản lý phiên đa thiết bị.
 
 [MÔ-ĐUN 2: NHẮN TIN CỐT LÕI 1-1 (CORE 1-1 REALTIME MESSAGING)]
   - [x] WebSocket Hub với kiến trúc Goroutines kép (ReadPump & WritePump).
