@@ -6,12 +6,12 @@
 1. XÁC THỰC HIỆN ĐẠI, BẢO MẬT & QUYỀN RIÊNG TƯ (AUTHENTICATION, SECURITY & PRIVACY)
 --------------------------------------------------------------------------------
 [Xác thực nâng cao & Đăng nhập mạng xã hội (OAuth 2.0 & Identity)]
-- [ ] Đăng nhập nhanh bằng tài khoản Google (Google Sign-In / OAuth 2.0 & OpenID Connect)
-- [ ] Đăng nhập bằng tài khoản Facebook (Facebook Login Graph API / OAuth 2.0)
-- [ ] Đăng nhập tài khoản nhà phát triển GitHub (GitHub OAuth 2.0)
-- [ ] Đăng nhập bảo mật với Apple ID (Sign in with Apple)
-- [ ] Đăng nhập qua tài khoản Discord / X (Twitter)
-- [ ] Liên kết và gỡ liên kết nhiều tài khoản mạng xã hội vào cùng 1 profile (Social Account Linking & Unlinking)
+- [x] Đăng nhập nhanh bằng tài khoản Google (Google Sign-In / OAuth 2.0 & OpenID Connect)
+- [x] Đăng nhập bằng tài khoản Facebook (Facebook Login Graph API / OAuth 2.0)
+- [x] Đăng nhập tài khoản nhà phát triển GitHub (GitHub OAuth 2.0)
+- [x] Đăng nhập bảo mật với Apple ID (Sign in with Apple)
+- [x] Đăng nhập qua tài khoản Discord / X (Twitter)
+- [x] Liên kết và gỡ liên kết nhiều tài khoản mạng xã hội vào cùng 1 profile (Social Account Linking & Unlinking)
 - [ ] Quên mật khẩu & Đặt lại mật khẩu an toàn qua Email OTP / Reset Link bảo mật (Forgot & Reset Password)
 - [ ] Xác thực địa chỉ Email khi đăng ký tài khoản (Email Verification & Activation Token)
 - [ ] Đăng nhập không cần mật khẩu qua đường dẫn ma thuật gửi về email (Passwordless Magic Link)

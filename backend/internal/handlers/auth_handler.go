@@ -75,3 +75,84 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 		"data": user,
 	})
 }
+
+// OAuthLogin handler đăng nhập qua mạng xã hội
+func (h *AuthHandler) OAuthLogin(c *gin.Context) {
+	var req models.OAuthLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu OAuth không hợp lệ: " + err.Error()})
+		return
+	}
+
+	res, err := h.authService.OAuthLogin(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Xác thực mạng xã hội thành công",
+		"data":    res,
+	})
+}
+
+// LinkOAuth handler liên kết mạng xã hội vào tài khoản hiện tại
+func (h *AuthHandler) LinkOAuth(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy phiên đăng nhập"})
+		return
+	}
+
+	var req models.LinkOAuthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu liên kết không hợp lệ: " + err.Error()})
+		return
+	}
+
+	if err := h.authService.LinkOAuth(c.Request.Context(), userID.(string), req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Liên kết tài khoản mạng xã hội thành công",
+	})
+}
+
+// UnlinkOAuth handler hủy liên kết mạng xã hội
+func (h *AuthHandler) UnlinkOAuth(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy phiên đăng nhập"})
+		return
+	}
+
+	provider := c.Param("provider")
+	if provider == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu thông tin provider"})
+		return
+	}
+
+	if err := h.authService.UnlinkOAuth(c.Request.Context(), userID.(string), provider); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Gỡ liên kết tài khoản thành công",
+	})
+}
+
+// GetProviders trả về danh sách các Provider hỗ trợ
+func (h *AuthHandler) GetProviders(c *gin.Context) {
+	providers := []gin.H{
+		{"id": "google", "name": "Google", "icon": "google", "enabled": true},
+		{"id": "facebook", "name": "Facebook", "icon": "facebook", "enabled": true},
+		{"id": "github", "name": "GitHub", "icon": "github", "enabled": true},
+		{"id": "apple", "name": "Apple", "icon": "apple", "enabled": true},
+		{"id": "discord", "name": "Discord", "icon": "discord", "enabled": true},
+	}
+	c.JSON(http.StatusOK, gin.H{"data": providers})
+}
+

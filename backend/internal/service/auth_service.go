@@ -2,12 +2,20 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"chatrealtime-backend/internal/models"
 	"chatrealtime-backend/internal/repository"
 	"chatrealtime-backend/pkg/utils"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type AuthService struct {
@@ -51,11 +59,13 @@ func (s *AuthService) Register(ctx context.Context, req models.RegisterRequest) 
 	}
 
 	newUser := &models.User{
-		Username:    req.Username,
-		Email:       req.Email,
-		Password:    hashedPassword,
-		DisplayName: displayName,
-		AvatarURL:   "https://api.dicebear.com/7.x/bottts/svg?seed=" + req.Username,
+		Username:      req.Username,
+		Email:         req.Email,
+		Password:      hashedPassword,
+		DisplayName:   displayName,
+		AvatarURL:     "https://api.dicebear.com/7.x/bottts/svg?seed=" + req.Username,
+		EmailVerified: false,
+		OAuthAccounts: []models.OAuthAccount{},
 	}
 
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
@@ -104,7 +114,284 @@ func (s *AuthService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	}, nil
 }
 
+// OAuthLogin xử lý đăng nhập hoặc đăng ký nhanh qua mạng xã hội (Google, Facebook, GitHub, Apple, Discord)
+func (s *AuthService) OAuthLogin(ctx context.Context, req models.OAuthLoginRequest) (*models.AuthResponse, error) {
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	if provider == "" {
+		return nil, errors.New("nhà cung cấp xác thực (provider) không hợp lệ")
+	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	name := strings.TrimSpace(req.Name)
+	avatarURL := strings.TrimSpace(req.AvatarURL)
+	providerID := strings.TrimSpace(req.ProviderID)
+
+	// Nếu có token thật gửi lên và chưa có info, thử xác thực từ API của Provider
+	if req.Token != "" && (email == "" || providerID == "") {
+		verifiedEmail, verifiedName, verifiedAvatar, verifiedID, err := s.verifyOAuthToken(provider, req.Token)
+		if err == nil && verifiedID != "" {
+			providerID = verifiedID
+			if verifiedEmail != "" {
+				email = verifiedEmail
+			}
+			if verifiedName != "" {
+				name = verifiedName
+			}
+			if verifiedAvatar != "" {
+				avatarURL = verifiedAvatar
+			}
+		}
+	}
+
+	if providerID == "" {
+		// Nếu là chế độ test / demo nhanh, tự tạo providerID từ email
+		if email != "" {
+			providerID = fmt.Sprintf("%s_%s", provider, strings.ReplaceAll(email, "@", "_"))
+		} else {
+			return nil, errors.New("thiếu thông tin định danh Provider ID hoặc Email")
+		}
+	}
+
+	if email == "" {
+		email = fmt.Sprintf("%s_%s@chatrealtime.local", provider, providerID)
+	}
+	if name == "" {
+		name = strings.Split(email, "@")[0]
+	}
+	if avatarURL == "" {
+		avatarURL = "https://api.dicebear.com/7.x/bottts/svg?seed=" + providerID
+	}
+
+	oauthAcc := models.OAuthAccount{
+		Provider:   provider,
+		ProviderID: providerID,
+		Email:      email,
+		Name:       name,
+		AvatarURL:  avatarURL,
+		LinkedAt:   time.Now(),
+	}
+
+	// 1. Kiểm tra tài khoản đã từng liên kết với Provider + ProviderID này chưa
+	user, err := s.userRepo.FindByOAuth(ctx, provider, providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user != nil {
+		// Đã tìm thấy tài khoản! Đồng bộ lại avatar/tên mới nhất nếu có
+		if avatarURL != "" && user.AvatarURL == "" {
+			_ = s.userRepo.Update(ctx, user.ID, bson.M{"avatar_url": avatarURL})
+			user.AvatarURL = avatarURL
+		}
+		// Cấp Token
+		jwtSecret := os.Getenv("JWT_SECRET")
+		token, err := utils.GenerateToken(user.ID.Hex(), user.Username, jwtSecret)
+		if err != nil {
+			return nil, errors.New("lỗi khi cấp phát token")
+		}
+		return &models.AuthResponse{Token: token, User: *user}, nil
+	}
+
+	// 2. Nếu chưa liên kết theo ProviderID, kiểm tra xem Email đã tồn tại trong hệ thống chưa
+	userByEmail, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if userByEmail != nil {
+		// Email đã có tài khoản sẵn (đăng ký thường hoặc qua bên khác) -> Tự động liên kết
+		if err := s.userRepo.LinkOAuthAccount(ctx, userByEmail.ID, oauthAcc); err != nil {
+			return nil, errors.New("không thể liên kết tài khoản mạng xã hội")
+		}
+		userByEmail.OAuthAccounts = append(userByEmail.OAuthAccounts, oauthAcc)
+		userByEmail.EmailVerified = true
+		_ = s.userRepo.Update(ctx, userByEmail.ID, bson.M{"email_verified": true})
+
+		jwtSecret := os.Getenv("JWT_SECRET")
+		token, err := utils.GenerateToken(userByEmail.ID.Hex(), userByEmail.Username, jwtSecret)
+		if err != nil {
+			return nil, errors.New("lỗi khi cấp phát token")
+		}
+		return &models.AuthResponse{Token: token, User: *userByEmail}, nil
+	}
+
+	// 3. User mới hoàn toàn -> Tạo tài khoản tự động
+	baseUsername := strings.Split(email, "@")[0]
+	cleanUsername := strings.ToLower(strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, baseUsername))
+	if len(cleanUsername) < 3 {
+		cleanUsername = provider + "_" + cleanUsername
+	}
+	if len(cleanUsername) > 20 {
+		cleanUsername = cleanUsername[:20]
+	}
+
+	finalUsername := cleanUsername
+	// Kiểm tra trùng username
+	for i := 1; i <= 10; i++ {
+		exist, _ := s.userRepo.FindByUsername(ctx, finalUsername)
+		if exist == nil {
+			break
+		}
+		finalUsername = fmt.Sprintf("%s%d", cleanUsername, time.Now().UnixNano()%1000)
+	}
+
+	newUser := &models.User{
+		Username:      finalUsername,
+		Email:         email,
+		DisplayName:   name,
+		AvatarURL:     avatarURL,
+		EmailVerified: true,
+		OAuthAccounts: []models.OAuthAccount{oauthAcc},
+	}
+
+	if err := s.userRepo.Create(ctx, newUser); err != nil {
+		return nil, errors.New("không thể tạo tài khoản từ mạng xã hội: " + err.Error())
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	token, err := utils.GenerateToken(newUser.ID.Hex(), newUser.Username, jwtSecret)
+	if err != nil {
+		return nil, errors.New("lỗi khi cấp phát token")
+	}
+
+	return &models.AuthResponse{
+		Token: token,
+		User:  *newUser,
+	}, nil
+}
+
+// LinkOAuth liên kết mạng xã hội vào tài khoản đang đăng nhập
+func (s *AuthService) LinkOAuth(ctx context.Context, currentUserID string, req models.LinkOAuthRequest) error {
+	objID, err := primitive.ObjectIDFromHex(currentUserID)
+	if err != nil {
+		return errors.New("ID người dùng không hợp lệ")
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	providerID := strings.TrimSpace(req.ProviderID)
+	if providerID == "" {
+		providerID = fmt.Sprintf("%s_%s", provider, strings.ReplaceAll(req.Email, "@", "_"))
+	}
+
+	// Kiểm tra tài khoản mạng xã hội này đã bị ai khác liên kết chưa
+	existOther, err := s.userRepo.FindByOAuth(ctx, provider, providerID)
+	if err != nil {
+		return err
+	}
+	if existOther != nil && existOther.ID != objID {
+		return errors.New("tài khoản mạng xã hội này đã được liên kết với một người dùng khác")
+	}
+
+	account := models.OAuthAccount{
+		Provider:   provider,
+		ProviderID: providerID,
+		Email:      req.Email,
+		Name:       req.Name,
+		AvatarURL:  req.AvatarURL,
+		LinkedAt:   time.Now(),
+	}
+
+	return s.userRepo.LinkOAuthAccount(ctx, objID, account)
+}
+
+// UnlinkOAuth gỡ liên kết mạng xã hội
+func (s *AuthService) UnlinkOAuth(ctx context.Context, currentUserID string, provider string) error {
+	objID, err := primitive.ObjectIDFromHex(currentUserID)
+	if err != nil {
+		return errors.New("ID người dùng không hợp lệ")
+	}
+
+	user, err := s.userRepo.FindByID(ctx, currentUserID)
+	if err != nil || user == nil {
+		return errors.New("không tìm thấy người dùng")
+	}
+
+	// Kiểm tra điều kiện bảo mật: User phải có mật khẩu hoặc còn tài khoản OAuth khác
+	if user.Password == "" && len(user.OAuthAccounts) <= 1 {
+		return errors.New("không thể gỡ liên kết vì đây là phương thức đăng nhập duy nhất của bạn. Hãy tạo mật khẩu trước!")
+	}
+
+	return s.userRepo.UnlinkOAuthAccount(ctx, objID, strings.ToLower(provider))
+}
+
+// verifyOAuthToken xác thực token trực tiếp với Google / Facebook / GitHub
+func (s *AuthService) verifyOAuthToken(provider, token string) (email, name, avatar, providerID string, err error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	switch provider {
+	case "google":
+		resp, e := client.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + token)
+		if e != nil || resp.StatusCode != http.StatusOK {
+			return "", "", "", "", errors.New("token Google không hợp lệ")
+		}
+		defer resp.Body.Close()
+		var gData struct {
+			Sub     string `json:"sub"`
+			Email   string `json:"email"`
+			Name    string `json:"name"`
+			Picture string `json:"picture"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&gData); err == nil {
+			return gData.Email, gData.Name, gData.Picture, gData.Sub, nil
+		}
+
+	case "github":
+		req, e := http.NewRequest("GET", "https://api.github.com/user", nil)
+		if e != nil {
+			return "", "", "", "", e
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, e := client.Do(req)
+		if e != nil || resp.StatusCode != http.StatusOK {
+			return "", "", "", "", errors.New("token GitHub không hợp lệ")
+		}
+		defer resp.Body.Close()
+		var ghData struct {
+			ID        int64  `json:"id"`
+			Login     string `json:"login"`
+			Name      string `json:"name"`
+			Email     string `json:"email"`
+			AvatarURL string `json:"avatar_url"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&ghData); err == nil {
+			displayName := ghData.Name
+			if displayName == "" {
+				displayName = ghData.Login
+			}
+			return ghData.Email, displayName, ghData.AvatarURL, fmt.Sprintf("%d", ghData.ID), nil
+		}
+
+	case "facebook":
+		resp, e := client.Get(fmt.Sprintf("https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=%s", token))
+		if e != nil || resp.StatusCode != http.StatusOK {
+			return "", "", "", "", errors.New("token Facebook không hợp lệ")
+		}
+		defer resp.Body.Close()
+		var fbData struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Email   string `json:"email"`
+			Picture struct {
+				Data struct {
+					URL string `json:"url"`
+				} `json:"data"`
+			} `json:"picture"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&fbData); err == nil {
+			return fbData.Email, fbData.Name, fbData.Picture.Data.URL, fbData.ID, nil
+		}
+	}
+
+	return "", "", "", "", errors.New("không hỗ trợ xác thực tự động cho provider này")
+}
+
 // GetUserProfile lấy thông tin người dùng từ ID
 func (s *AuthService) GetUserProfile(ctx context.Context, userID string) (*models.User, error) {
 	return s.userRepo.FindByID(ctx, userID)
 }
+

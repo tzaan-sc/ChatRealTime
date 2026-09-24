@@ -91,7 +91,11 @@ func main() {
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/oauth", authHandler.OAuthLogin)
+			auth.GET("/providers", authHandler.GetProviders)
 			auth.GET("/me", middleware.AuthMiddleware(), authHandler.GetMe)
+			auth.POST("/oauth/link", middleware.AuthMiddleware(), authHandler.LinkOAuth)
+			auth.DELETE("/oauth/unlink/:provider", middleware.AuthMiddleware(), authHandler.UnlinkOAuth)
 		}
 
 		// Chat Routes (Cần xác thực Token)

@@ -31,15 +31,18 @@
     Eye,
     EyeOff,
     Bookmark,
-    Link2
+    Link2,
+    ShieldCheck
   } from 'lucide-svelte';
   import { onMount, onDestroy } from 'svelte';
   import CreateGroupModal from './CreateGroupModal.svelte';
   import InviteJoinModal from './InviteJoinModal.svelte';
+  import SocialAccountsModal from './SocialAccountsModal.svelte';
 
   let showUsersModal = false;
   let showCreateGroupModal = false;
   let showInviteJoinModal = false;
+  let showSocialModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
@@ -148,6 +151,9 @@
         {:else}
           <BellOff size={18} style="color: #ef4444;" />
         {/if}
+      </button>
+      <button class="icon-btn" title="Liên kết tài khoản mạng xã hội (OAuth)" on:click={() => (showSocialModal = true)}>
+        <ShieldCheck size={19} />
       </button>
       <button class="icon-btn" title="Tham gia nhóm bằng liên kết mời" on:click={() => (showInviteJoinModal = true)}>
         <Link2 size={19} />
@@ -405,6 +411,11 @@
 <!-- Modal Tham gia bằng liên kết mời -->
 {#if showInviteJoinModal}
   <InviteJoinModal onClose={() => (showInviteJoinModal = false)} />
+{/if}
+
+<!-- Modal Quản lý liên kết OAuth -->
+{#if showSocialModal}
+  <SocialAccountsModal onClose={() => (showSocialModal = false)} />
 {/if}
 
 <style>

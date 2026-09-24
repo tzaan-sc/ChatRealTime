@@ -108,5 +108,70 @@ func (r *UserRepository) FindByIDs(ctx context.Context, ids []primitive.ObjectID
 	return users, nil
 }
 
+// FindByOAuth tìm user theo provider và provider_id
+func (r *UserRepository) FindByOAuth(ctx context.Context, provider, providerID string) (*models.User, error) {
+	var user models.User
+	filter := bson.M{
+		"oauth_accounts": bson.M{
+			"$elemMatch": bson.M{
+				"provider":    provider,
+				"provider_id": providerID,
+			},
+		},
+	}
+	err := r.collection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// LinkOAuthAccount liên kết tài khoản mạng xã hội vào User
+func (r *UserRepository) LinkOAuthAccount(ctx context.Context, userID primitive.ObjectID, account models.OAuthAccount) error {
+	filter := bson.M{"_id": userID}
+	pullUpdate := bson.M{
+		"$pull": bson.M{
+			"oauth_accounts": bson.M{"provider": account.Provider},
+		},
+	}
+	_, _ = r.collection.UpdateOne(ctx, filter, pullUpdate)
+
+	pushUpdate := bson.M{
+		"$push": bson.M{
+			"oauth_accounts": account,
+		},
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, pushUpdate)
+	return err
+}
+
+// UnlinkOAuthAccount gỡ liên kết tài khoản mạng xã hội khỏi User
+func (r *UserRepository) UnlinkOAuthAccount(ctx context.Context, userID primitive.ObjectID, provider string) error {
+	filter := bson.M{"_id": userID}
+	update := bson.M{
+		"$pull": bson.M{
+			"oauth_accounts": bson.M{"provider": provider},
+		},
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// Update updates generic user fields
+func (r *UserRepository) Update(ctx context.Context, userID primitive.ObjectID, updateFields bson.M) error {
+	updateFields["updated_at"] = time.Now()
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": userID}, bson.M{"$set": updateFields})
+	return err
+}
+
 
 
