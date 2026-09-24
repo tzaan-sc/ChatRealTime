@@ -89,15 +89,32 @@ func main() {
 		// Auth Routes
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
+			// Đăng ký & Đăng nhập có bảo vệ Rate Limiting chống spam bot & brute force
+			auth.POST("/register", middleware.RateLimit(database.RedisClient, 10, 60, "register"), authHandler.Register)
+			auth.POST("/login", middleware.RateLimit(database.RedisClient, 20, 60, "login"), authHandler.Login)
 			auth.POST("/oauth", authHandler.OAuthLogin)
 			auth.GET("/providers", authHandler.GetProviders)
-			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.POST("/forgot-password", middleware.RateLimit(database.RedisClient, 5, 60, "forgot_password"), authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
 			auth.POST("/send-verification", authHandler.SendVerificationEmail)
 			auth.POST("/verify-email", authHandler.VerifyEmail)
+			auth.POST("/magic-link/send", middleware.RateLimit(database.RedisClient, 5, 60, "magic_link"), authHandler.SendMagicLink)
+			auth.POST("/magic-link/verify", authHandler.VerifyMagicLink)
+			auth.POST("/phone/send-otp", middleware.RateLimit(database.RedisClient, 5, 60, "phone_otp"), authHandler.SendPhoneOTP)
+			auth.POST("/phone/verify", authHandler.VerifyPhoneOTP)
+
+			// Silent Token Refresh & Rotation, Logout
+			auth.POST("/refresh", authHandler.RefreshToken)
+			auth.POST("/logout", authHandler.Logout)
+
+			// Enterprise Single Sign-On (SSO)
+			auth.POST("/sso/initiate", authHandler.SSOInitiate)
+			auth.POST("/sso/callback", authHandler.SSOCallback)
+
+			// Xác thực định danh & Quản lý phiên bảo mật
 			auth.GET("/me", middleware.AuthMiddleware(), authHandler.GetMe)
+			auth.GET("/security/sessions", middleware.AuthMiddleware(), authHandler.GetSecuritySessions)
+			auth.POST("/security/revoke-others", middleware.AuthMiddleware(), authHandler.RevokeOtherSessions)
 			auth.POST("/oauth/link", middleware.AuthMiddleware(), authHandler.LinkOAuth)
 			auth.DELETE("/oauth/unlink/:provider", middleware.AuthMiddleware(), authHandler.UnlinkOAuth)
 		}

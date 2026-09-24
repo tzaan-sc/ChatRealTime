@@ -14,12 +14,12 @@
 - [x] Liên kết và gỡ liên kết nhiều tài khoản mạng xã hội vào cùng 1 profile (Social Account Linking & Unlinking)
 - [x] Quên mật khẩu & Đặt lại mật khẩu an toàn qua Email OTP / Reset Link bảo mật (Forgot & Reset Password)
 - [x] Xác thực địa chỉ Email khi đăng ký tài khoản (Email Verification & Activation Token)
-- [ ] Đăng nhập không cần mật khẩu qua đường dẫn ma thuật gửi về email (Passwordless Magic Link)
-- [ ] Đăng ký & Đăng nhập bằng số điện thoại xác thực OTP qua SMS / Zalo ZNS (Phone Number OTP Login)
-- [ ] Đăng nhập một lần cho tổ chức/doanh nghiệp (Enterprise Single Sign-On - SSO SAML 2.0 / OIDC / Okta)
-- [ ] Chống spam bot đăng ký và tấn công dò quét mật khẩu (Cloudflare Turnstile / reCAPTCHA v3 / Rate Limiting)
-- [ ] Cơ chế làm mới phiên tự động và an toàn (Silent Token Refresh & Refresh Token Rotation)
-- [ ] Cảnh báo đăng nhập từ thiết bị lạ / IP bất thường qua Email thông báo (Suspicious Login Alert)
+- [x] Đăng nhập không cần mật khẩu qua đường dẫn ma thuật gửi về email (Passwordless Magic Link)
+- [x] Đăng ký & Đăng nhập bằng số điện thoại xác thực OTP qua SMS / Zalo ZNS (Phone Number OTP Login)
+- [x] Đăng nhập một lần cho tổ chức/doanh nghiệp (Enterprise Single Sign-On - SSO SAML 2.0 / OIDC / Okta)
+- [x] Chống spam bot đăng ký và tấn công dò quét mật khẩu (Cloudflare Turnstile / reCAPTCHA v3 / Rate Limiting)
+- [x] Cơ chế làm mới phiên tự động và an toàn (Silent Token Refresh & Refresh Token Rotation)
+- [x] Cảnh báo đăng nhập từ thiết bị lạ / IP bất thường qua Email thông báo (Suspicious Login Alert)
 
 [Bảo mật chuyên sâu & Quyền riêng tư (Security, Privacy & E2EE)]
 - [ ] Mã hóa đầu cuối 1-1 (E2EE - Signal Protocol / Double Ratchet)

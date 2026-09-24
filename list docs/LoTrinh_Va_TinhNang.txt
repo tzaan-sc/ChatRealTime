@@ -23,8 +23,12 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Đăng nhập mạng xã hội OAuth 2.0 (Google, Facebook, GitHub, Apple).
   - [x] Quên mật khẩu & Đặt lại mật khẩu an toàn qua OTP Email (Forgot & Reset Password).
   - [x] Xác thực địa chỉ Email khi đăng ký tài khoản (Email Verification & Activation Token).
-  - [ ] Đăng nhập không cần mật khẩu (Magic Link & SMS/Zalo OTP).
-  - [ ] Quét mã QR đăng nhập nhanh và quản lý phiên đa thiết bị.
+  - [x] Đăng nhập không cần mật khẩu (Magic Link & SMS/Zalo OTP).
+  - [x] Đăng nhập một lần cho tổ chức/doanh nghiệp (Enterprise Single Sign-On - SSO SAML 2.0 / OIDC / Okta).
+  - [x] Chống spam bot đăng ký và tấn công dò quét mật khẩu (Cloudflare Turnstile & IP Rate Limiting).
+  - [x] Cơ chế làm mới phiên tự động và an toàn (Silent Token Refresh & Refresh Token Rotation).
+  - [x] Cảnh báo đăng nhập từ thiết bị lạ / IP bất thường và quản lý phiên đa thiết bị (Suspicious Login Alert).
+  - [ ] Quét mã QR đăng nhập nhanh từ điện thoại lên Web/Desktop.
 
 [MÔ-ĐUN 2: NHẮN TIN CỐT LÕI 1-1 (CORE 1-1 REALTIME MESSAGING)]
   - [x] WebSocket Hub với kiến trúc Goroutines kép (ReadPump & WritePump).

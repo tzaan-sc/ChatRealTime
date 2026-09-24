@@ -32,19 +32,22 @@
     EyeOff,
     Bookmark,
     Link2,
-    ShieldCheck
+    ShieldCheck,
+    ShieldAlert
   } from 'lucide-svelte';
   import { onMount, onDestroy } from 'svelte';
   import CreateGroupModal from './CreateGroupModal.svelte';
   import InviteJoinModal from './InviteJoinModal.svelte';
   import SocialAccountsModal from './SocialAccountsModal.svelte';
   import EmailVerificationModal from './EmailVerificationModal.svelte';
+  import SecuritySessionsModal from './SecuritySessionsModal.svelte';
 
   let showUsersModal = false;
   let showCreateGroupModal = false;
   let showInviteJoinModal = false;
   let showSocialModal = false;
   let showEmailVerifyModal = false;
+  let showSecurityModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
@@ -156,6 +159,9 @@
       </button>
       <button class="icon-btn" title="Liên kết tài khoản mạng xã hội (OAuth)" on:click={() => (showSocialModal = true)}>
         <ShieldCheck size={19} />
+      </button>
+      <button class="icon-btn" title="Bảo mật phiên & Thiết bị đăng nhập" on:click={() => (showSecurityModal = true)}>
+        <ShieldAlert size={19} />
       </button>
       <button class="icon-btn" title="Tham gia nhóm bằng liên kết mời" on:click={() => (showInviteJoinModal = true)}>
         <Link2 size={19} />
@@ -434,6 +440,9 @@
 {#if showEmailVerifyModal}
   <EmailVerificationModal onClose={() => (showEmailVerifyModal = false)} />
 {/if}
+
+<!-- Modal Bảo mật phiên & Thiết bị đăng nhập -->
+<SecuritySessionsModal isOpen={showSecurityModal} onClose={() => (showSecurityModal = false)} />
 
 <style>
   .sidebar {

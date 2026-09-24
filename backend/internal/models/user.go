@@ -24,7 +24,9 @@ type User struct {
 	Password      string             `bson:"password" json:"-"` // Dấu "-" để không bao giờ lộ password ra JSON
 	DisplayName   string             `bson:"display_name" json:"display_name"`
 	AvatarURL     string             `bson:"avatar_url" json:"avatar_url"`
+	PhoneNumber   string             `bson:"phone_number,omitempty" json:"phone_number,omitempty"`
 	EmailVerified bool               `bson:"email_verified" json:"email_verified"`
+	Organization  string             `bson:"organization,omitempty" json:"organization,omitempty"` // Doanh nghiệp / Tổ chức SSO
 	OAuthAccounts []OAuthAccount     `bson:"oauth_accounts,omitempty" json:"oauth_accounts,omitempty"`
 	CreatedAt     time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt     time.Time          `bson:"updated_at" json:"updated_at"`
@@ -32,16 +34,18 @@ type User struct {
 
 // Request DTO cho Đăng ký
 type RegisterRequest struct {
-	Username    string `json:"username" binding:"required,min=3,max=30"`
-	Email       string `json:"email" binding:"required,email"`
-	Password    string `json:"password" binding:"required,min=6"`
-	DisplayName string `json:"display_name"`
+	Username     string `json:"username" binding:"required,min=3,max=30"`
+	Email        string `json:"email" binding:"required,email"`
+	Password     string `json:"password" binding:"required,min=6"`
+	DisplayName  string `json:"display_name"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
 }
 
 // Request DTO cho Đăng nhập
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username     string `json:"username" binding:"required"`
+	Password     string `json:"password" binding:"required"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
 }
 
 // Request DTO cho Đăng nhập / Đăng ký qua OAuth 2.0 (Google, Facebook, GitHub, Apple, Discord)
@@ -67,7 +71,8 @@ type LinkOAuthRequest struct {
 
 // Request DTO cho Quên mật khẩu
 type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email        string `json:"email" binding:"required,email"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
 }
 
 // Request DTO cho Đặt lại mật khẩu với mã OTP
@@ -88,10 +93,87 @@ type VerifyEmailRequest struct {
 	OTP   string `json:"otp" binding:"required,len=6"`
 }
 
+// Request DTO cho Gửi Magic Link đăng nhập
+type SendMagicLinkRequest struct {
+	Email        string `json:"email" binding:"required,email"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
+}
+
+// Request DTO cho Xác thực Magic Link
+type VerifyMagicLinkRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
+// Request DTO cho Gửi mã OTP số điện thoại
+type SendPhoneOTPRequest struct {
+	Phone        string `json:"phone" binding:"required,min=9,max=15"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
+}
+
+// Request DTO cho Xác minh số điện thoại & Đăng nhập
+type VerifyPhoneOTPRequest struct {
+	Phone       string `json:"phone" binding:"required,min=9,max=15"`
+	OTP         string `json:"otp" binding:"required,len=6"`
+	DisplayName string `json:"display_name"`
+}
+
+// Request DTO cho Làm mới Token (Silent Token Refresh & Rotation)
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
 // Response DTO sau khi Đăng nhập thành công
 type AuthResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token         string `json:"token"`
+	RefreshToken  string `json:"refresh_token,omitempty"`
+	User          User   `json:"user"`
+	NewDevice     bool   `json:"new_device,omitempty"`
+	DeviceInfo    string `json:"device_info,omitempty"`
+	SecurityAlert string `json:"security_alert,omitempty"`
 }
+
+// Thông tin Thiết bị đăng nhập & Bảo mật phiên
+type LoginDevice struct {
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	IPAddress  string    `json:"ip_address"`
+	UserAgent  string    `json:"user_agent"`
+	DeviceName string    `json:"device_name"` // e.g. "Chrome trên Windows"
+	Location   string    `json:"location"`    // e.g. "Hà Nội, VN" hoặc "Localhost"
+	LastActive time.Time `json:"last_active"`
+	IsCurrent  bool      `json:"is_current"`
+}
+
+// Cảnh báo an ninh đăng nhập (Suspicious Login Alert)
+type SecurityAlert struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Type      string    `json:"type"` // "new_device", "unusual_ip", "rate_limit_blocked"
+	Message   string    `json:"message"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Request DTO khởi tạo đăng nhập Doanh nghiệp SSO
+type SSOInitiateRequest struct {
+	WorkEmail string `json:"work_email" binding:"required,email"`
+}
+
+// Response DTO cho khởi tạo SSO
+type SSOInitiateResponse struct {
+	Domain       string `json:"domain"`
+	Organization string `json:"organization"`
+	SSOType      string `json:"sso_type"` // e.g. "OIDC", "SAML_2.0", "Okta", "Azure_AD"
+	RedirectURL  string `json:"redirect_url"`
+}
+
+// Request DTO callback xử lý SSO assertion / token
+type SSOCallbackRequest struct {
+	WorkEmail string `json:"work_email" binding:"required,email"`
+	SSOToken  string `json:"sso_token"`
+	Provider  string `json:"provider"` // "okta", "azure_ad", "google_workspace", "saml"
+}
+
 
 

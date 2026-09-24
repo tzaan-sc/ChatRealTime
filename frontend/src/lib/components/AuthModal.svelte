@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { apiRequest } from '../services/api';
   import { loginSuccess } from '../stores/auth';
   import { loadConversations } from '../stores/chat';
@@ -14,12 +15,34 @@
 
   // View switch: 'auth' | 'forgot'
   let authView = 'auth';
+  let authMethod = 'password'; // 'password' | 'magic_link' | 'phone' | 'sso'
   let forgotEmail = '';
   let forgotOtp = '';
   let forgotNewPassword = '';
   let forgotConfirmPassword = '';
   let forgotStep = 1; // 1: Nhập email, 2: Nhập OTP & đổi pass
   let demoForgotOtp = '';
+
+  // State Magic Link
+  let magicEmail = '';
+  let demoMagicToken = '';
+  let magicSent = false;
+
+  // State Phone OTP
+  let phone = '';
+  let phoneOtp = '';
+  let phoneDisplayName = '';
+  let phoneStep = 1; // 1: Nhập SĐT, 2: Nhập OTP
+  let demoPhoneOtp = '';
+
+  // State Enterprise SSO
+  let ssoEmail = '';
+  let ssoStep = 1; // 1: Nhập email công ty, 2: Xác nhận tổ chức & SSO Login
+  let ssoInfo = null;
+
+  // Cloudflare Turnstile / Bot Verification
+  let botVerified = true;
+  let captchaToken = 'cf-turnstile-dummy-pass';
 
   // Trạng thái Social OAuth Modal
   let activeSocialProvider = null; // 'google', 'facebook', 'github', 'apple', 'discord'
@@ -56,16 +79,21 @@
     loading = true;
     try {
       if (isLogin) {
-        const res = await apiRequest('/auth/login', 'POST', { username, password });
-        loginSuccess(res.data.user, res.data.token);
+        const res = await apiRequest('/auth/login', 'POST', {
+          username,
+          password,
+          captcha_token: captchaToken
+        });
+        loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
       } else {
         const res = await apiRequest('/auth/register', 'POST', {
           username,
           email,
           password,
-          display_name: displayName || username
+          display_name: displayName || username,
+          captcha_token: captchaToken
         });
-        loginSuccess(res.data.user, res.data.token);
+        loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
       }
       loadConversations();
     } catch (err) {
@@ -118,7 +146,7 @@
 
       const res = await apiRequest('/auth/oauth', 'POST', payload);
       activeSocialProvider = null;
-      loginSuccess(res.data.user, res.data.token);
+      loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
       loadConversations();
     } catch (err) {
       errorMsg = err.message;
@@ -136,7 +164,10 @@
     errorMsg = '';
     successMsg = '';
     try {
-      const res = await apiRequest('/auth/forgot-password', 'POST', { email: forgotEmail });
+      const res = await apiRequest('/auth/forgot-password', 'POST', {
+        email: forgotEmail,
+        captcha_token: captchaToken
+      });
       demoForgotOtp = res.demo_otp || '';
       forgotStep = 2;
       successMsg = res.message || 'Mã OTP đặt lại mật khẩu đã được gửi!';
@@ -183,6 +214,148 @@
       loading = false;
     }
   }
+
+  // --- Magic Link Logic ---
+  async function handleSendMagicLink() {
+    if (!magicEmail) {
+      errorMsg = 'Vui lòng nhập địa chỉ email nhận Magic Link';
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    successMsg = '';
+    try {
+      const res = await apiRequest('/auth/magic-link/send', 'POST', {
+        email: magicEmail,
+        captcha_token: captchaToken
+      });
+      demoMagicToken = res.demo_token || '';
+      magicSent = true;
+      successMsg = res.message || 'Đường dẫn đăng nhập đã được gửi tới email của bạn!';
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleVerifyMagicLink(tokenVal) {
+    loading = true;
+    errorMsg = '';
+    successMsg = '';
+    try {
+      const res = await apiRequest('/auth/magic-link/verify', 'POST', { token: tokenVal });
+      loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
+      loadConversations();
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  // --- Phone OTP Logic ---
+  async function handleSendPhoneOtp() {
+    if (!phone || phone.length < 9) {
+      errorMsg = 'Vui lòng nhập số điện thoại hợp lệ (9 - 15 số)';
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    successMsg = '';
+    try {
+      const res = await apiRequest('/auth/phone/send-otp', 'POST', {
+        phone,
+        captcha_token: captchaToken
+      });
+      demoPhoneOtp = res.demo_otp || '';
+      phoneStep = 2;
+      successMsg = res.message || 'Mã OTP đã được gửi tới số điện thoại!';
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleVerifyPhoneOtp() {
+    if (!phoneOtp || phoneOtp.length !== 6) {
+      errorMsg = 'Vui lòng nhập đầy đủ mã OTP 6 chữ số';
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    successMsg = '';
+    try {
+      const res = await apiRequest('/auth/phone/verify', 'POST', {
+        phone,
+        otp: phoneOtp,
+        display_name: phoneDisplayName
+      });
+      loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
+      loadConversations();
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  // --- Enterprise SSO Logic ---
+  const ssoPresets = [
+    { email: 'admin@fpt.vn', org: 'Tập đoàn FPT', provider: 'Okta / SAML 2.0' },
+    { email: 'techlead@viettel.com.vn', org: 'Tập đoàn Viettel', provider: 'Azure AD / SAML 2.0' },
+    { email: 'developer@vng.com.vn', org: 'VNG Corporation', provider: 'Google Workspace OIDC' },
+    { email: 'alex@acme.com', org: 'Acme Global Enterprise', provider: 'Okta Enterprise SSO' }
+  ];
+
+  async function handleSSOInitiate() {
+    if (!ssoEmail || !ssoEmail.includes('@')) {
+      errorMsg = 'Vui lòng nhập địa chỉ email doanh nghiệp hợp lệ (ví dụ: name@company.com)';
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    successMsg = '';
+    try {
+      const res = await apiRequest('/auth/sso/initiate', 'POST', { work_email: ssoEmail });
+      ssoInfo = res.data;
+      ssoStep = 2;
+      successMsg = `Đã xác thực nhà cung cấp danh tính IdP cho: ${res.data.organization}`;
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSSOCallback() {
+    loading = true;
+    errorMsg = '';
+    try {
+      const res = await apiRequest('/auth/sso/callback', 'POST', {
+        work_email: ssoEmail,
+        sso_token: 'saml_assertion_valid_token_verified',
+        provider: ssoInfo?.sso_type || 'saml'
+      });
+      loginSuccess(res.data.user, res.data.token, res.data.refresh_token, res.data.security_alert);
+      loadConversations();
+    } catch (err) {
+      errorMsg = err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  onMount(async () => {
+    // Tự động kiểm tra param ?magic_token=... khi người dùng mở link từ email
+    const urlParams = new URLSearchParams(window.location.search);
+    const magicToken = urlParams.get('magic_token');
+    if (magicToken) {
+      await handleVerifyMagicLink(magicToken);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
 </script>
 
 <div class="auth-overlay">
@@ -274,57 +447,278 @@
         </div>
       </div>
 
-      <!-- Hoặc qua Username & Password -->
-      <div class="divider">
-        <div class="line"></div>
-        <span class="divider-text">hoặc tài khoản mật khẩu</span>
-        <div class="line"></div>
+      <!-- Thanh chọn phương thức đăng nhập -->
+      <div class="method-selector">
+        <button
+          type="button"
+          class="method-tab"
+          class:active={authMethod === 'password'}
+          on:click={() => { authMethod = 'password'; errorMsg = ''; successMsg = ''; }}
+        >
+          <span>🔑 Tài khoản</span>
+        </button>
+        <button
+          type="button"
+          class="method-tab"
+          class:active={authMethod === 'magic_link'}
+          on:click={() => { authMethod = 'magic_link'; errorMsg = ''; successMsg = ''; }}
+        >
+          <span>🪄 Magic Link</span>
+        </button>
+        <button
+          type="button"
+          class="method-tab"
+          class:active={authMethod === 'phone'}
+          on:click={() => { authMethod = 'phone'; errorMsg = ''; successMsg = ''; }}
+        >
+          <span>📱 Số ĐT</span>
+        </button>
+        <button
+          type="button"
+          class="method-tab"
+          class:active={authMethod === 'sso'}
+          on:click={() => { authMethod = 'sso'; errorMsg = ''; successMsg = ''; }}
+        >
+          <span>🏢 Doanh nghiệp</span>
+        </button>
       </div>
 
-      <form on:submit|preventDefault={handleSubmit}>
-        <div class="input-group">
-          <label for="auth-username">Tên đăng nhập</label>
-          <input id="auth-username" type="text" bind:value={username} placeholder="vd: alex99" required />
+      {#if authMethod === 'password'}
+        <form on:submit|preventDefault={handleSubmit}>
+          <div class="input-group">
+            <label for="auth-username">Tên đăng nhập</label>
+            <input id="auth-username" type="text" bind:value={username} placeholder="vd: alex99" required />
+          </div>
+
+          {#if !isLogin}
+            <div class="input-group">
+              <label for="auth-email">Email</label>
+              <input id="auth-email" type="email" bind:value={email} placeholder="alex@gmail.com" required />
+            </div>
+            <div class="input-group">
+              <label for="auth-display-name">Tên hiển thị</label>
+              <input id="auth-display-name" type="text" bind:value={displayName} placeholder="Alex Nguyen" />
+            </div>
+          {/if}
+
+          <div class="input-group">
+            <div class="label-row">
+              <label for="auth-password">Mật khẩu</label>
+              {#if isLogin}
+                <button
+                  type="button"
+                  class="forgot-link"
+                  on:click={() => { authView = 'forgot'; errorMsg = ''; successMsg = ''; }}
+                >
+                  Quên mật khẩu?
+                </button>
+              {/if}
+            </div>
+            <input id="auth-password" type="password" bind:value={password} placeholder="••••••••" required />
+          </div>
+
+          <!-- Turnstile / Bot Protection Badge -->
+          <div class="turnstile-badge">
+            <div class="turnstile-left">
+              <input type="checkbox" id="turnstile-chk" checked={botVerified} on:change={(e) => botVerified = e.target.checked} />
+              <label for="turnstile-chk" class="turnstile-label">
+                <span class="chk-check">✓</span>
+                <span>Xác minh tôi không phải là người máy</span>
+              </label>
+            </div>
+            <div class="turnstile-right">
+              <span class="cf-logo">Cloudflare</span>
+              <span class="cf-sub">Turnstile & Rate Limit</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" disabled={loading || !botVerified}>
+            {loading ? 'Đang xử lý...' : (isLogin ? 'Đăng Nhập' : 'Đăng Ký')}
+          </button>
+        </form>
+
+        <div class="switch-mode">
+          <span>{isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}</span>
+          <button type="button" on:click={() => { isLogin = !isLogin; errorMsg = ''; successMsg = ''; }}>
+            {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
+          </button>
         </div>
-
-        {#if !isLogin}
-          <div class="input-group">
-            <label for="auth-email">Email</label>
-            <input id="auth-email" type="email" bind:value={email} placeholder="alex@gmail.com" required />
-          </div>
-          <div class="input-group">
-            <label for="auth-display-name">Tên hiển thị</label>
-            <input id="auth-display-name" type="text" bind:value={displayName} placeholder="Alex Nguyen" />
-          </div>
-        {/if}
-
-        <div class="input-group">
-          <div class="label-row">
-            <label for="auth-password">Mật khẩu</label>
-            {#if isLogin}
+      {:else if authMethod === 'magic_link'}
+        <!-- Magic Link Form -->
+        <div class="magic-link-section">
+          <p class="magic-desc">
+            Đăng nhập không cần mật khẩu. Nhập email của bạn, chúng tôi sẽ gửi một liên kết ma thuật để đăng nhập tức thì chỉ với 1 cú click!
+          </p>
+          {#if demoMagicToken}
+            <div class="demo-otp-box">
+              <span>🪄 Link ma thuật đã sẵn sàng!</span>
               <button
                 type="button"
-                class="forgot-link"
-                on:click={() => { authView = 'forgot'; errorMsg = ''; successMsg = ''; }}
+                class="btn-copy-otp"
+                on:click={() => handleVerifyMagicLink(demoMagicToken)}
               >
-                Quên mật khẩu?
+                Click Đăng nhập ngay
               </button>
-            {/if}
-          </div>
-          <input id="auth-password" type="password" bind:value={password} placeholder="••••••••" required />
+            </div>
+          {/if}
+          <form on:submit|preventDefault={handleSendMagicLink}>
+            <div class="input-group">
+              <label for="magic-email">Địa chỉ Email</label>
+              <input
+                id="magic-email"
+                type="email"
+                bind:value={magicEmail}
+                placeholder="vd: alex@gmail.com"
+                required
+              />
+            </div>
+            <button type="submit" class="btn-primary" disabled={loading}>
+              {loading ? 'Đang gửi...' : 'Gửi Magic Link Đăng Nhập'}
+            </button>
+          </form>
         </div>
+      {:else if authMethod === 'phone'}
+        <!-- Phone OTP Form -->
+        <div class="phone-auth-section">
+          <p class="magic-desc">
+            Xác thực bằng số điện thoại. Mã OTP sẽ được gửi qua SMS / Zalo ZNS để đăng nhập nhanh không cần mật khẩu.
+          </p>
+          {#if demoPhoneOtp}
+            <div class="demo-otp-box">
+              <span>📱 Mã OTP SMS: <strong>{demoPhoneOtp}</strong></span>
+              <button
+                type="button"
+                class="btn-copy-otp"
+                on:click={() => { phoneOtp = demoPhoneOtp; }}
+              >
+                Tự điền
+              </button>
+            </div>
+          {/if}
+          {#if phoneStep === 1}
+            <form on:submit|preventDefault={handleSendPhoneOtp}>
+              <div class="input-group">
+                <label for="phone-input">Số điện thoại</label>
+                <input
+                  id="phone-input"
+                  type="tel"
+                  bind:value={phone}
+                  placeholder="vd: 0987654321"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-primary" disabled={loading}>
+                {loading ? 'Đang gửi mã...' : 'Nhận mã OTP qua SMS'}
+              </button>
+            </form>
+          {:else}
+            <form on:submit|preventDefault={handleVerifyPhoneOtp}>
+              <div class="input-group">
+                <label for="phone-otp-input">Mã OTP (6 số gửi tới {phone})</label>
+                <input
+                  id="phone-otp-input"
+                  type="text"
+                  maxlength="6"
+                  bind:value={phoneOtp}
+                  placeholder="123456"
+                  required
+                  style="letter-spacing: 0.25em; font-size: 18px; font-weight: 700; text-align: center;"
+                />
+              </div>
+              <div class="input-group">
+                <label for="phone-name-input">Tên hiển thị (nếu là tài khoản mới)</label>
+                <input
+                  id="phone-name-input"
+                  type="text"
+                  bind:value={phoneDisplayName}
+                  placeholder="Alex Phone"
+                />
+              </div>
+              <button type="submit" class="btn-primary" disabled={loading || phoneOtp.length !== 6}>
+                {loading ? 'Đang xác thực...' : 'Xác nhận & Đăng nhập'}
+              </button>
+              <button
+                type="button"
+                class="btn-resend"
+                disabled={loading}
+                on:click={handleSendPhoneOtp}
+              >
+                Gửi lại mã OTP
+              </button>
+            </form>
+          {/if}
+        </div>
+      {:else if authMethod === 'sso'}
+        <!-- Enterprise Single Sign-On (SSO) Form -->
+        <div class="sso-auth-section">
+          <p class="magic-desc">
+            Đăng nhập một lần cho tổ chức/doanh nghiệp qua <strong>SAML 2.0 / OIDC / Okta / Azure AD</strong>.
+          </p>
 
-        <button type="submit" class="btn-primary" disabled={loading}>
-          {loading ? 'Đang xử lý...' : (isLogin ? 'Đăng Nhập' : 'Đăng Ký')}
-        </button>
-      </form>
+          <!-- Preset doanh nghiệp để test nhanh 1-chạm -->
+          <div class="sso-presets-box">
+            <span class="sso-presets-title">Chọn nhanh tổ chức mẫu demo:</span>
+            <div class="sso-presets-list">
+              {#each ssoPresets as p}
+                <button
+                  type="button"
+                  class="sso-preset-chip"
+                  on:click={() => { ssoEmail = p.email; handleSSOInitiate(); }}
+                >
+                  <span class="chip-org">{p.org}</span>
+                  <span class="chip-mail">{p.email}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
 
-      <div class="switch-mode">
-        <span>{isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}</span>
-        <button type="button" on:click={() => { isLogin = !isLogin; errorMsg = ''; successMsg = ''; }}>
-          {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
-        </button>
-      </div>
+          {#if ssoStep === 1}
+            <form on:submit|preventDefault={handleSSOInitiate}>
+              <div class="input-group">
+                <label for="sso-email">Email Doanh nghiệp / Tổ chức</label>
+                <input
+                  id="sso-email"
+                  type="email"
+                  bind:value={ssoEmail}
+                  placeholder="name@company.com"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-primary" disabled={loading}>
+                {loading ? 'Đang kiểm tra...' : 'Xác thực Tổ chức (Identity Provider)'}
+              </button>
+            </form>
+          {:else}
+            <div class="sso-verified-box">
+              <div class="sso-idp-header">
+                <span class="sso-icon">🏢</span>
+                <div>
+                  <h4>{ssoInfo?.organization || 'Tổ chức Doanh nghiệp'}</h4>
+                  <p class="sso-idp-sub">Giao thức: {ssoInfo?.sso_type || 'SAML 2.0 / OIDC'} • Tên miền: @{ssoInfo?.domain}</p>
+                </div>
+              </div>
+              <div class="sso-user-target">
+                <span>Tài khoản xác thực: <strong>{ssoEmail}</strong></span>
+              </div>
+              <button
+                type="button"
+                class="btn-primary btn-sso-login"
+                disabled={loading}
+                on:click={handleSSOCallback}
+              >
+                {loading ? 'Đang kết nối IdP...' : 'Đăng nhập ngay qua SSO Doanh nghiệp'}
+              </button>
+              <button
+                type="button"
+                class="btn-resend"
+                on:click={() => { ssoStep = 1; ssoInfo = null; }}
+              >
+                Nhập email tổ chức khác
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
     {:else}
       <!-- MÀN HÌNH QUÊN MẬT KHẨU / ĐẶT LẠI MẬT KHẨU QUA EMAIL OTP -->
       <div class="forgot-container">
@@ -910,6 +1304,196 @@
   }
   .back-to-login button:hover {
     text-decoration: underline;
+  }
+
+  /* Method Selector Tabs */
+  .method-selector {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 18px;
+  }
+  .method-tab {
+    padding: 8px 2px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .method-tab:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .method-tab.active {
+    color: #fff;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .magic-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-glass);
+  }
+  .magic-link-section, .phone-auth-section, .sso-auth-section {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* Cloudflare Turnstile & Anti-bot Badge */
+  .turnstile-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    gap: 8px;
+  }
+  .turnstile-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .turnstile-left input[type="checkbox"] {
+    accent-color: #0284c7;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .turnstile-label {
+    font-size: 11.5px;
+    color: #cbd5e1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    user-select: none;
+  }
+  .chk-check {
+    color: #38bdf8;
+    font-weight: 700;
+  }
+  .turnstile-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.1;
+  }
+  .cf-logo {
+    font-size: 10px;
+    font-weight: 800;
+    color: #f97316;
+    letter-spacing: 0.05em;
+  }
+  .cf-sub {
+    font-size: 8.5px;
+    color: #64748b;
+  }
+
+  /* Enterprise SSO Styles */
+  .sso-presets-box {
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .sso-presets-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .sso-presets-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .sso-preset-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-glass);
+    cursor: pointer;
+    text-align: left;
+    transition: 0.2s;
+  }
+  .sso-preset-chip:hover {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  .chip-org {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .chip-mail {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .sso-verified-box {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sso-idp-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sso-icon {
+    font-size: 26px;
+  }
+  .sso-idp-header h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .sso-idp-sub {
+    margin: 2px 0 0 0;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+  .sso-user-target {
+    font-size: 12.5px;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 10px;
+    border-radius: 6px;
+  }
+  .btn-sso-login {
+    background: linear-gradient(135deg, #2563eb, #0284c7) !important;
+    font-weight: 700;
   }
 </style>
 

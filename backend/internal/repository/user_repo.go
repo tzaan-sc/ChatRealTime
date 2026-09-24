@@ -58,6 +58,19 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models
 	return &user, nil
 }
 
+// FindByPhone tìm user theo số điện thoại
+func (r *UserRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
+	var user models.User
+	err := r.collection.FindOne(ctx, bson.M{"phone_number": phone}).Decode(&user)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 // FindByID tìm user theo ObjectID
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
