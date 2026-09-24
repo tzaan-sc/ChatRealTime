@@ -156,3 +156,80 @@ func (h *AuthHandler) GetProviders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": providers})
 }
 
+// ForgotPassword gửi mã OTP khôi phục mật khẩu qua email
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req models.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email không hợp lệ: " + err.Error()})
+		return
+	}
+
+	otp, err := h.authService.ForgotPassword(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Mã xác thực khôi phục mật khẩu đã được gửi về email của bạn (hết hạn trong 15 phút)",
+		"demo_otp": otp, // Hỗ trợ dev/test nhanh khi chưa gắn server SMTP thực
+	})
+}
+
+// ResetPassword đặt lại mật khẩu mới với mã OTP
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req models.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu đặt lại mật khẩu không hợp lệ: " + err.Error()})
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.",
+	})
+}
+
+// SendVerificationEmail gửi mã kích hoạt email
+func (h *AuthHandler) SendVerificationEmail(c *gin.Context) {
+	var req models.SendVerificationEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email không hợp lệ: " + err.Error()})
+		return
+	}
+
+	otp, err := h.authService.SendVerificationEmail(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Mã kích hoạt tài khoản đã được gửi tới email của bạn (hết hạn trong 24 giờ)",
+		"demo_otp": otp,
+	})
+}
+
+// VerifyEmail kích hoạt tài khoản với mã OTP
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req models.VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu xác thực không hợp lệ: " + err.Error()})
+		return
+	}
+
+	if err := h.authService.VerifyEmail(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Xác thực địa chỉ email thành công! Tài khoản của bạn đã được kích hoạt hoàn toàn.",
+	})
+}
+
+

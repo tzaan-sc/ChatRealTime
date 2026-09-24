@@ -173,5 +173,32 @@ func (r *UserRepository) Update(ctx context.Context, userID primitive.ObjectID, 
 	return err
 }
 
+// UpdatePassword cập nhật mật khẩu băm mới cho User
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID primitive.ObjectID, hashedPassword string) error {
+	filter := bson.M{"_id": userID}
+	update := bson.M{
+		"$set": bson.M{
+			"password":   hashedPassword,
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// SetEmailVerified cập nhật trạng thái email đã xác thực
+func (r *UserRepository) SetEmailVerified(ctx context.Context, email string, verified bool) error {
+	filter := bson.M{"email": email}
+	update := bson.M{
+		"$set": bson.M{
+			"email_verified": verified,
+			"updated_at":     time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+
 
 

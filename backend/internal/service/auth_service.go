@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -14,16 +16,18 @@ import (
 	"chatrealtime-backend/internal/repository"
 	"chatrealtime-backend/pkg/utils"
 
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type AuthService struct {
-	userRepo *repository.UserRepository
+	userRepo    *repository.UserRepository
+	redisClient *redis.Client
 }
 
-func NewAuthService(userRepo *repository.UserRepository) *AuthService {
-	return &AuthService{userRepo: userRepo}
+func NewAuthService(userRepo *repository.UserRepository, redisClient *redis.Client) *AuthService {
+	return &AuthService{userRepo: userRepo, redisClient: redisClient}
 }
 
 // Register xử lý logic đăng ký tài khoản
@@ -394,4 +398,149 @@ func (s *AuthService) verifyOAuthToken(provider, token string) (email, name, ava
 func (s *AuthService) GetUserProfile(ctx context.Context, userID string) (*models.User, error) {
 	return s.userRepo.FindByID(ctx, userID)
 }
+
+// ForgotPassword tạo mã OTP 6 chữ số gửi qua email và lưu Redis với hạn 15 phút
+func (s *AuthService) ForgotPassword(ctx context.Context, req models.ForgotPasswordRequest) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", errors.New("không tìm thấy tài khoản liên kết với địa chỉ email này")
+	}
+
+	// Rate limiting chống gửi liên tục: mỗi 60s tối đa 1 lần
+	rateKey := fmt.Sprintf("rate:forgot_pw:%s", email)
+	if s.redisClient != nil {
+		exists, _ := s.redisClient.Exists(ctx, rateKey).Result()
+		if exists > 0 {
+			return "", errors.New("yêu cầu gửi mã quá nhanh. Vui lòng đợi 1 phút trước khi thử lại!")
+		}
+	}
+
+	// Sinh mã OTP ngẫu nhiên 6 chữ số
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	otp := fmt.Sprintf("%06d", r.Intn(1000000))
+
+	// Lưu OTP vào Redis (15 phút)
+	if s.redisClient != nil {
+		otpKey := fmt.Sprintf("otp:forgot_pw:%s", email)
+		if err := s.redisClient.Set(ctx, otpKey, otp, 15*time.Minute).Err(); err != nil {
+			return "", errors.New("lỗi máy chủ khi tạo mã OTP")
+		}
+		_ = s.redisClient.Set(ctx, rateKey, "1", 60*time.Second).Err()
+	}
+
+	log.Printf("📧 [FORGOT_PASSWORD_OTP] Gửi mã đặt lại mật khẩu cho: %s | OTP: %s (Hết hạn trong 15 phút)\n", email, otp)
+	return otp, nil
+}
+
+// ResetPassword kiểm tra mã OTP và cập nhật mật khẩu mới
+func (s *AuthService) ResetPassword(ctx context.Context, req models.ResetPasswordRequest) error {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	otp := strings.TrimSpace(req.OTP)
+
+	if s.redisClient == nil {
+		return errors.New("hệ thống lưu trữ OTP tạm thời không khả dụng")
+	}
+
+	otpKey := fmt.Sprintf("otp:forgot_pw:%s", email)
+	storedOTP, err := s.redisClient.Get(ctx, otpKey).Result()
+	if err != nil || storedOTP == "" {
+		return errors.New("mã OTP không tồn tại hoặc đã hết hạn. Vui lòng gửi yêu cầu mới!")
+	}
+
+	if storedOTP != otp {
+		return errors.New("mã OTP không chính xác. Vui lòng kiểm tra lại!")
+	}
+
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil || user == nil {
+		return errors.New("không tìm thấy người dùng")
+	}
+
+	// Băm mật khẩu mới
+	hashedPw, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		return errors.New("lỗi khi mã hóa mật khẩu mới")
+	}
+
+	// Cập nhật vào DB
+	if err := s.userRepo.UpdatePassword(ctx, user.ID, hashedPw); err != nil {
+		return errors.New("không thể cập nhật mật khẩu: " + err.Error())
+	}
+
+	// Xóa OTP khỏi Redis
+	_ = s.redisClient.Del(ctx, otpKey)
+	log.Printf("🔑 [RESET_PASSWORD_SUCCESS] Đặt lại mật khẩu thành công cho tài khoản: %s\n", email)
+	return nil
+}
+
+// SendVerificationEmail tạo mã OTP kích hoạt tài khoản gửi qua email (Hạn 24 giờ)
+func (s *AuthService) SendVerificationEmail(ctx context.Context, req models.SendVerificationEmailRequest) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", errors.New("không tìm thấy tài khoản với email này")
+	}
+	if user.EmailVerified {
+		return "", errors.New("địa chỉ email này đã được xác thực trước đó")
+	}
+
+	// Rate limiting chống gửi liên tục: 60s
+	rateKey := fmt.Sprintf("rate:verify_email:%s", email)
+	if s.redisClient != nil {
+		exists, _ := s.redisClient.Exists(ctx, rateKey).Result()
+		if exists > 0 {
+			return "", errors.New("yêu cầu gửi email quá thường xuyên. Vui lòng thử lại sau 1 phút!")
+		}
+	}
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	otp := fmt.Sprintf("%06d", r.Intn(1000000))
+
+	if s.redisClient != nil {
+		otpKey := fmt.Sprintf("otp:verify_email:%s", email)
+		if err := s.redisClient.Set(ctx, otpKey, otp, 24*time.Hour).Err(); err != nil {
+			return "", errors.New("lỗi máy chủ khi tạo mã xác thực email")
+		}
+		_ = s.redisClient.Set(ctx, rateKey, "1", 60*time.Second).Err()
+	}
+
+	log.Printf("✉️ [EMAIL_VERIFICATION_OTP] Mã kích hoạt tài khoản cho: %s | OTP: %s (Hết hạn trong 24 giờ)\n", email, otp)
+	return otp, nil
+}
+
+// VerifyEmail kiểm tra mã kích hoạt và đánh dấu email_verified = true
+func (s *AuthService) VerifyEmail(ctx context.Context, req models.VerifyEmailRequest) error {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	otp := strings.TrimSpace(req.OTP)
+
+	if s.redisClient == nil {
+		return errors.New("hệ thống lưu trữ OTP tạm thời không khả dụng")
+	}
+
+	otpKey := fmt.Sprintf("otp:verify_email:%s", email)
+	storedOTP, err := s.redisClient.Get(ctx, otpKey).Result()
+	if err != nil || storedOTP == "" {
+		return errors.New("mã xác thực email không hợp lệ hoặc đã hết hạn")
+	}
+
+	if storedOTP != otp {
+		return errors.New("mã xác thực không chính xác")
+	}
+
+	if err := s.userRepo.SetEmailVerified(ctx, email, true); err != nil {
+		return errors.New("không thể cập nhật trạng thái xác thực email: " + err.Error())
+	}
+
+	_ = s.redisClient.Del(ctx, otpKey)
+	log.Printf("✅ [EMAIL_VERIFICATION_SUCCESS] Kích hoạt email thành công cho: %s\n", email)
+	return nil
+}
+
 

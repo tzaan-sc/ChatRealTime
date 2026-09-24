@@ -47,7 +47,7 @@ func main() {
 	go hub.Run()
 
 	// 5. Khởi tạo Services
-	authService := service.NewAuthService(userRepo)
+	authService := service.NewAuthService(userRepo, database.RedisClient)
 	chatService := service.NewChatService(msgRepo, convRepo, userRepo)
 	groupService := service.NewGroupService(groupRepo, userRepo, inviteRepo, joinReqRepo, pollRepo, eventRepo, msgRepo, database.RedisClient)
 
@@ -93,6 +93,10 @@ func main() {
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/oauth", authHandler.OAuthLogin)
 			auth.GET("/providers", authHandler.GetProviders)
+			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.POST("/reset-password", authHandler.ResetPassword)
+			auth.POST("/send-verification", authHandler.SendVerificationEmail)
+			auth.POST("/verify-email", authHandler.VerifyEmail)
 			auth.GET("/me", middleware.AuthMiddleware(), authHandler.GetMe)
 			auth.POST("/oauth/link", middleware.AuthMiddleware(), authHandler.LinkOAuth)
 			auth.DELETE("/oauth/unlink/:provider", middleware.AuthMiddleware(), authHandler.UnlinkOAuth)

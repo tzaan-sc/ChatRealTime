@@ -65,9 +65,33 @@ type LinkOAuthRequest struct {
 	AvatarURL  string `json:"avatar_url"`
 }
 
+// Request DTO cho Quên mật khẩu
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// Request DTO cho Đặt lại mật khẩu với mã OTP
+type ResetPasswordRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	OTP         string `json:"otp" binding:"required,len=6"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+// Request DTO cho Gửi email xác thực tài khoản
+type SendVerificationEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// Request DTO cho Xác minh email với mã OTP
+type VerifyEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	OTP   string `json:"otp" binding:"required,len=6"`
+}
+
 // Response DTO sau khi Đăng nhập thành công
 type AuthResponse struct {
 	Token string `json:"token"`
 	User  User   `json:"user"`
 }
+
 

@@ -38,11 +38,13 @@
   import CreateGroupModal from './CreateGroupModal.svelte';
   import InviteJoinModal from './InviteJoinModal.svelte';
   import SocialAccountsModal from './SocialAccountsModal.svelte';
+  import EmailVerificationModal from './EmailVerificationModal.svelte';
 
   let showUsersModal = false;
   let showCreateGroupModal = false;
   let showInviteJoinModal = false;
   let showSocialModal = false;
+  let showEmailVerifyModal = false;
   let loadingUsers = false;
   let usersError = '';
   let searchQuery = '';
@@ -169,6 +171,16 @@
       </button>
     </div>
   </div>
+
+  <!-- Banner cảnh báo chưa xác thực Email -->
+  {#if $currentUser && !$currentUser.email_verified}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="unverified-banner" on:click={() => (showEmailVerifyModal = true)} role="button" tabindex="0">
+      <span class="warning-icon">⚠️</span>
+      <span class="banner-text">Email chưa xác thực. <u>Kích hoạt ngay</u></span>
+    </div>
+  {/if}
 
   <!-- Search Bar -->
   <div class="search-box">
@@ -418,6 +430,11 @@
   <SocialAccountsModal onClose={() => (showSocialModal = false)} />
 {/if}
 
+<!-- Modal Xác thực Email -->
+{#if showEmailVerifyModal}
+  <EmailVerificationModal onClose={() => (showEmailVerifyModal = false)} />
+{/if}
+
 <style>
   .sidebar {
     width: 320px;
@@ -434,6 +451,26 @@
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--border-glass);
+  }
+
+  .unverified-banner {
+    background: rgba(245, 158, 11, 0.14);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fde68a;
+    padding: 7px 16px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .unverified-banner:hover {
+    background: rgba(245, 158, 11, 0.22);
+  }
+  .unverified-banner u {
+    font-weight: 600;
+    color: #fbbf24;
   }
 
   .user-info { display: flex; align-items: center; gap: 12px; }

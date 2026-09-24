@@ -21,7 +21,8 @@ II. BẢN ĐỒ TÍNH NĂNG THEO MÔ-ĐUN
   - [x] Lấy danh sách bạn bè / người dùng trong hệ thống để nhắn tin.
   - [x] Tìm kiếm người dùng theo username/email.
   - [x] Đăng nhập mạng xã hội OAuth 2.0 (Google, Facebook, GitHub, Apple).
-  - [ ] Quên mật khẩu & Đặt lại mật khẩu an toàn qua OTP Email (Forgot & Reset Password).
+  - [x] Quên mật khẩu & Đặt lại mật khẩu an toàn qua OTP Email (Forgot & Reset Password).
+  - [x] Xác thực địa chỉ Email khi đăng ký tài khoản (Email Verification & Activation Token).
   - [ ] Đăng nhập không cần mật khẩu (Magic Link & SMS/Zalo OTP).
   - [ ] Quét mã QR đăng nhập nhanh và quản lý phiên đa thiết bị.
 
